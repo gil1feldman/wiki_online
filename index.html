@@ -2,304 +2,147 @@
 <html lang="he">
 <head>
   <meta charset="UTF-8">
-  <title>לוח בקרה - ויקיפדיה</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <title>מעקב עריכות ויקיפדיה</title>
   <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      direction: rtl;
-      background-color: #f9f9f9;
-    }
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background-color: #eaeaea;
-      padding: 10px 20px;
-      position: sticky;
-      top: 0;
-      z-index: 1000;
-    }
-    header img {
-      height: 50px;
-    }
-    nav button {
-      margin: 0 10px;
-      padding: 8px 12px;
-      font-size: 1em;
-      cursor: pointer;
-      border: none;
-      border-radius: 4px;
-      background-color: #1976d2;
-      color: white;
-    }
-    nav button:hover {
-      background-color: #115293;
-    }
-    section {
-      display: none;
-      padding: 20px;
-    }
-    section.active {
-      display: block;
-    }
-    canvas {
-      width: 100% !important;
-      max-height: 35vh !important;
-      margin-top: 15px;
-    }
+    body { font-family: Arial, sans-serif; margin: 20px; direction: rtl; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    th { background-color: #f2f2f2; }
+    select { margin-left: 10px; }
   </style>
 </head>
 <body>
-  <header>
-    <img src="https://raw.githubusercontent.com/gil1feldman/my-form/main/logo_current_situation.png" alt="לוגו המיזם">
-    <nav>
-      <button onclick="showSection('sectionStats')">סטטיסטיקות ערך</button>
-      <button onclick="showSection('sectionRecent')">עריכות אחרונות</button>
-      <button onclick="showSection('sectionEditors')">פעילות עורכים</button>
-    </nav>
-  </header>
 
-  <!-- מקטע 1 - סטטיסטיקות ערך -->
-  <section id="sectionStats" class="active">
-    <!-- קוד הדף הראשון -->
-    <div class="controls">
-      <input type="text" id="pageTitle" placeholder="הזן שם ערך">
-      <select id="granularitySelect">
-        <option value="daily" selected>רמת פירוט יומית</option>
-        <option value="monthly">רמת פירוט חודשית</option>
-      </select>
-      <select id="rangeSelect">
-        <option value="7">7 ימים אחרונים</option>
-        <option value="30" selected>30 ימים אחרונים</option>
-        <option value="90">90 ימים אחרונים</option>
-        <option value="180">180 ימים אחרונים</option>
-        <option value="365">365 ימים אחרונים</option>
-        <option value="all">מאז ומעולם</option>
-      </select>
-      <button onclick="loadData()">הצג נתונים</button>
-      <button onclick="downloadCSV()">הורד CSV</button>
-      <button id="generateLink" onclick="generateShareLink()" disabled>צור קישור לשיתוף</button>
-    </div>
-    <div id="wikiLink"></div>
-    <div id="pageInfo"></div>
-    <canvas id="viewsChart"></canvas>
-    <canvas id="editsChart"></canvas>
-  </section>
+<h1>מעקב עריכות אחרונות בויקיפדיה</h1>
 
-  <!-- מקטע 2 - עריכות אחרונות -->
-  <section id="sectionRecent">
-    <h1>עריכות אחרונות בוויקיפדיה</h1>
-    <div class="control-bar">
-      <input type="text" id="pageFilter" onkeyup="filterTable()" placeholder="🔎 סינון לפי שם הערך">
-      <button id="refresh-btn" onclick="initRecent()">🔄 רענון</button>
-      <input type="text" id="editorFilter" onkeyup="filterTable()" placeholder="🔎 סינון לפי שם העורך">
-    </div>
-    <div id="summary-info"></div>
-    <div class="summaries">
-      <div class="summary-box">
-        <h2>10 הערכים עם הכי הרבה עריכות</h2>
-        <table id="summaryTable">
-          <thead><tr><th>שם הערך</th><th>מספר</th><th>זמן אחרון</th><th>קישור</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="summary-box">
-        <h2>10 העורכים הפעילים ביותר</h2>
-        <table id="editorsTable">
-          <thead><tr><th>שם העורך</th><th>מספר עריכות</th><th>קישור</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="summary-box full-width-box">
-        <h2>רשימת עריכות</h2>
-        <table id="editsTable">
-          <thead><tr><th>שם הערך</th><th>זמן העריכה</th><th>הערות</th><th>גודל השינוי</th><th>קישור להבדל</th><th>קישור לערך</th><th>שם העורך</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
+<div>
+  <label>קטגוריה:
+    <select id="categoryFilter">
+      <option value="">הכל</option>
+    </select>
+  </label>
 
-  <!-- מקטע 3 - פעילות עורכים -->
-  <section id="sectionEditors">
-    <h1>עריכות אחרונות של עורכי ויקיפדיה</h1>
-    <div class="flex-container">
-      <div class="form-area">
-        <input type="text" id="editorInput" placeholder="כתוב שם משתמש חופשי..." />
-        <br>
-        <label for="editorSelect">או בחר שם משתמש מהרשימה:</label><br>
-        <select id="editorSelect"><option value="">-- בחר --</option></select>
-        <br>
-        <label for="dateRange">בחר טווח תאריכים:</label><br>
-        <select id="dateRange">
-          <option value="7">7 ימים אחרונים</option>
-          <option value="30">30 ימים אחרונים</option>
-          <option value="90">90 ימים אחרונים</option>
-          <option value="180">180 ימים אחרונים</option>
-        </select>
-        <br>
-        <button onclick="searchEdits()">חפש</button>
-        <button class="share-button" onclick="copyShareLink()">שתף קישור</button>
-      </div>
-      <div class="table-area">
-        <table id="summaryTableEditors" style="display:none;">
-          <thead><tr><th>שם הערך</th><th>מספר עריכות</th><th>תאריך עריכה אחרון</th></tr></thead>
-          <tbody></tbody>
-        </table>
-        <table id="resultsTable" style="display:none;">
-          <thead><tr><th>שם הערך</th><th>תאריך עריכה</th><th>הערות</th><th>גודל השינוי</th><th>גרסה קודמת</th><th>קישור לערך</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
+  <label>תאריך:
+    <select id="dateFilter">
+      <option value="">הכל</option>
+    </select>
+  </label>
+</div>
 
-  <script>
-    function showSection(id) {
-      document.querySelectorAll('section').forEach(sec => sec.classList.remove('active'));
-      document.getElementById(id).classList.add('active');
-    }
-  </script>
+<table id="editsTable">
+  <thead>
+    <tr>
+      <th>תאריך</th>
+      <th>שעת עריכה אחרונה</th>
+      <th>שם הערך</th>
+      <th>קטגוריה</th>
+      <th>גודל השינוי</th>
+      <th>מספר עריכות</th>
+      <th>קישור לערך</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
 
-  <script>
-// --- פונקציות לעריכות האחרונות ---
+<script>
+const API_URL = "https://he.wikipedia.org/w/api.php?action=query&list=recentchanges&rcprop=title|timestamp|sizes|tags&rcnamespace=0&rclimit=100&format=json&origin=*";
+
 let allEdits = [];
 
-async function fetchRecentChanges() {
-  const url = 'https://he.wikipedia.org/w/api.php?action=query&format=json&list=recentchanges&rcnamespace=0&rclimit=500&rcprop=title|ids|sizes|user|comment|timestamp&origin=*';
-  const response = await fetch(url);
-  const data = await response.json();
-  return data.query.recentchanges;
+async function loadEdits() {
+  try {
+    const response = await fetch(API_URL);
+    const data = await response.json();
+    const edits = data.query.recentchanges.map(rc => {
+      const date = rc.timestamp.split("T")[0];
+      const time = rc.timestamp.split("T")[1].replace("Z", "");
+      return {
+        date: date,
+        time: time.substring(0,5),
+        title: rc.title,
+        category: (rc.tags && rc.tags.length > 0) ? rc.tags[0] : "ללא קטגוריה",
+        size: rc.newlen - rc.oldlen,
+        editCount: 1,
+        url: `https://he.wikipedia.org/wiki/${encodeURIComponent(rc.title)}`
+      };
+    });
+
+    // שמירה של ערך יחיד לכל יום (לפי שם ערך)
+    const uniquePerDay = {};
+    edits.forEach(edit => {
+      const key = edit.date + edit.title;
+      if (!uniquePerDay[key]) {
+        uniquePerDay[key] = edit;
+      } else {
+        uniquePerDay[key].editCount++;
+      }
+    });
+
+    allEdits = Object.values(uniquePerDay);
+    populateFilters(allEdits);
+    populateTable(allEdits);
+
+  } catch (error) {
+    console.error("שגיאה בטעינת נתונים", error);
+  }
 }
 
-function populateEditsTable(edits) {
-  const tableBody = document.querySelector('#editsTable tbody');
-  tableBody.innerHTML = '';
+function populateFilters(data) {
+  const categories = [...new Set(data.map(d => d.category))];
+  const dates = [...new Set(data.map(d => d.date))].sort().reverse().slice(0,3);
 
-  edits.forEach(edit => {
-    const row = document.createElement('tr');
-    const sizeChange = (edit.newlen ?? 0) - (edit.oldlen ?? 0);
+  const catFilter = document.getElementById("categoryFilter");
+  categories.forEach(cat => {
+    const option = document.createElement("option");
+    option.value = cat;
+    option.textContent = cat;
+    catFilter.appendChild(option);
+  });
+
+  const dateFilter = document.getElementById("dateFilter");
+  dates.forEach(date => {
+    const option = document.createElement("option");
+    option.value = date;
+    option.textContent = date;
+    dateFilter.appendChild(option);
+  });
+
+  catFilter.addEventListener('change', applyFilters);
+  dateFilter.addEventListener('change', applyFilters);
+}
+
+function applyFilters() {
+  const cat = document.getElementById("categoryFilter").value;
+  const date = document.getElementById("dateFilter").value;
+  
+  let filtered = allEdits;
+  if (cat) filtered = filtered.filter(e => e.category === cat);
+  if (date) filtered = filtered.filter(e => e.date === date);
+
+  populateTable(filtered);
+}
+
+function populateTable(data) {
+  const tbody = document.querySelector("#editsTable tbody");
+  tbody.innerHTML = "";
+
+  data.forEach(edit => {
+    const row = document.createElement("tr");
     row.innerHTML = `
+      <td>${edit.date}</td>
+      <td>${edit.time}</td>
       <td>${edit.title}</td>
-      <td>${new Date(edit.timestamp).toLocaleString('he-IL')}</td>
-      <td>${edit.comment || ''}</td>
-      <td>${sizeChange > 0 ? '+' : ''}${sizeChange}</td>
-      <td><a href="https://he.wikipedia.org/w/index.php?diff=${edit.revid}" target="_blank">הבדל</a></td>
-      <td><a href="https://he.wikipedia.org/wiki/${encodeURIComponent(edit.title)}" target="_blank">צפייה</a></td>
-      <td><a href="https://he.wikipedia.org/wiki/User:${encodeURIComponent(edit.user)}" target="_blank">${edit.user}</a></td>
+      <td>${edit.category}</td>
+      <td>${edit.size}</td>
+      <td>${edit.editCount}</td>
+      <td><a href="${edit.url}" target="_blank">צפה</a></td>
     `;
-    tableBody.appendChild(row);
-  });
-
-  updateSummaryTables(edits);
-  updateSummaryInfo(edits);
-}
-
-function updateSummaryInfo(edits) {
-  const count = edits.length;
-  if (count === 0) return;
-
-  const times = edits.map(e => new Date(e.timestamp));
-  const minTime = new Date(Math.min(...times));
-  const maxTime = new Date(Math.max(...times));
-
-  const formatter = new Intl.DateTimeFormat('he-IL', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
-
-  const range = `${formatter.format(minTime)} – ${formatter.format(maxTime)}`;
-  const summaryText = `${count} עריכות אחרונות | ${range}`;
-  document.getElementById('summary-info').textContent = summaryText;
-}
-
-function filterTable() {
-  const editorInput = document.getElementById('editorFilter').value.toLowerCase();
-  const pageInput = document.getElementById('pageFilter').value.toLowerCase();
-  const rows = document.querySelectorAll('#editsTable tbody tr');
-
-  rows.forEach(row => {
-    const editor = row.cells[6].textContent.toLowerCase();
-    const page = row.cells[0].textContent.toLowerCase();
-
-    if (editor.includes(editorInput) && page.includes(pageInput)) {
-      row.style.display = '';
-    } else {
-      row.style.display = 'none';
-    }
-  });
-
-  const filtered = allEdits.filter(edit =>
-    edit.user.toLowerCase().includes(editorInput) &&
-    edit.title.toLowerCase().includes(pageInput)
-  );
-
-  updateSummaryTables(filtered);
-  updateSummaryInfo(filtered);
-}
-
-function updateSummaryTables(edits) {
-  const pages = {};
-  edits.forEach(edit => {
-    const title = edit.title;
-    const time = edit.timestamp;
-    if (!pages[title]) pages[title] = { count: 0, latest: time };
-    pages[title].count++;
-    if (new Date(time) > new Date(pages[title].latest)) {
-      pages[title].latest = time;
-    }
-  });
-
-  const topPages = Object.entries(pages)
-    .sort((a, b) => b[1].count - a[1].count)
-    .slice(0, 10);
-
-  const summaryBody = document.querySelector('#summaryTable tbody');
-  summaryBody.innerHTML = '';
-  topPages.forEach(([title, data]) => {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${title}</td>
-      <td>${data.count}</td>
-      <td>${new Date(data.latest).toLocaleString('he-IL')}</td>
-      <td><a href="https://he.wikipedia.org/wiki/${encodeURIComponent(title)}" target="_blank">צפייה</a></td>
-    `;
-    summaryBody.appendChild(row);
-  });
-
-  const editors = {};
-  edits.forEach(edit => {
-    const user = edit.user;
-    if (!editors[user]) editors[user] = 0;
-    editors[user]++;
-  });
-
-  const topEditors = Object.entries(editors)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10);
-
-  const editorsBody = document.querySelector('#editorsTable tbody');
-  editorsBody.innerHTML = '';
-  topEditors.forEach(([user, count]) => {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${user}</td>
-      <td>${count}</td>
-      <td><a href="https://he.wikipedia.org/wiki/User:${encodeURIComponent(user)}" target="_blank">פרופיל</a></td>
-    `;
-    editorsBody.appendChild(row);
+    tbody.appendChild(row);
   });
 }
 
-function initRecent() {
-  fetchRecentChanges().then(edits => {
-    allEdits = edits;
-    populateEditsTable(edits);
-  });
-}
+document.addEventListener('DOMContentLoaded', loadEdits);
 </script>
+
 </body>
 </html>
