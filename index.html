@@ -1,187 +1,168 @@
-<!DOCTYPE html>
-<html lang="he">
-<head>
-<meta charset="UTF-8">
-<title>מעקב עריכות ויקיפדיה לפי קטגוריות</title>
-<style>
-  body { font-family: Arial, sans-serif; margin: 20px; direction: rtl; }
-  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-  th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
-  th { background-color: #f2f2f2; }
-  select { margin: 10px; }
-</style>
-</head>
-<body>
+from flask import Flask, render_template
+import requests
+import re
+import pandas as pd
+import datetime
 
-<h1>מעקב עריכות בויקיפדיה לפי קטגוריות</h1>
-<div>
-  <label>בחר קטגוריה:
-    <select id="categoryFilter">
-      <option value="">הכל</option>
-    </select>
-  </label>
-  <label>בחר תאריך:
-    <select id="dateFilter">
-      <option value="">הכל</option>
-    </select>
-  </label>
-</div>
+app = Flask(__name__)
 
-<table id="editsTable">
-<thead>
-<tr>
-  <th>תאריך</th>
-  <th>שעה</th>
-  <th>שם הערך</th>
-  <th>קטגוריה</th>
-  <th>גודל שינוי</th>
-  <th>מספר עריכות</th>
-  <th>קישור לערך</th>
-</tr>
-</thead>
-<tbody></tbody>
-</table>
+# List of Wikipedia categories
+targets = [
+    'קטגוריה:עיתונאים_ישראלים',
+    'קטגוריה:עיתונאיות_ישראליות',
+    'קטגוריה:חברי_הכנסת_העשרים_וחמש',
+    'קטגוריה:שופטי_בית_המשפט_העליון',
+    'קטגוריה:שופטי_בית_המשפט_העליון_בדימוס',
+    'קטגוריה:המחאה_נגד_בנימין_נתניהו:_אישים',
+    'קטגוריה:מפקדי_אוגדות_במלחמת_חרבות_ברזל',
+    'קטגוריה:חברי_המטה_הכללי_של_צה"ל',
+    'קטגוריה:תתי-אלופים_בצה"ל',
+    'קטגוריה:מעשי_טבח_בישראל',
+    'קטגוריה:ישראל:_פיגועי_התאבדות',
+    'קטגוריה:ישראל:_מינהל_ציבורי',
+    'קטגוריה:מחאה_בישראל',
+    'קטגוריה:תהליך_השלום_הישראלי-פלסטיני',
+    'קטגוריה:הסכסוך_הישראלי-פלסטיני',
+    'קטגוריה:ישראל:_משפט_חוקתי',
+    'קטגוריה:עובדי_ציבור_ישראלים',
+    'קטגוריה:ראשי_השב"כ',
+    'קטגוריה:ניצבי_משטרת_ישראל',
+    'קטגוריה:פעילים_חברתיים_ישראלים',
+    'קטגוריה:חברי_הכנסת_מטעם_מרצ',
+    'קטגוריה:ראשי_ממשלת_ישראל',
+    'קטגוריה:ליברליזם',
+    'קטגוריה:ישראל:_מפלגות',
+    'קטגוריה:עסקאות_חילופי_שבויים',
+    'קטגוריה:החטיפה_לרצועת_עזה_במלחמת_חרבות_ברזל',
+    'קטגוריה:ישראל:_יחסי_חוץ_לפי_מדינה',
+    'קטגוריה:ישראל:_ועדות_חקירה_ממלכתיות',
+    'קטגוריה:גיוס_בני_ישיבות',
+    'קטגוריה:פעילי_אחים_לנשק',
+    'קטגוריה:ישראל:_ארגוני_סיוע_משפטי',
+    'קטגוריה:החטופים_הישראלים_ברצועת_עזה_במלחמת_חרבות_ברזל',
+    'קטגוריה:ויקיפדיה:_ערכים_שמתקיים_לגביהם_דיון_חשיבות_אנציקלופדית',
+    'קטגוריה:ויקיפדיה:_הצבעות_מחיקה_ושחזור'
+]
 
-<script>
-const targets = [
-  'קטגוריה:עיתונאים_ישראלים', 'קטגוריה:עיתונאיות_ישראליות', 'קטגוריה:חברי_הכנסת_העשרים_וחמש',
-  'קטגוריה:שופטי_בית_המשפט_העליון', 'קטגוריה:שופטי_בית_המשפט_העליון_בדימוס',
-  'קטגוריה:המחאה_נגד_בנימין_נתניהו:_אישים', 'קטגוריה:מפקדי_אוגדות_במלחמת_חרבות_ברזל',
-  'קטגוריה:חברי_המטה_הכללי_של_צה"ל', 'קטגוריה:תתי-אלופים_בצה"ל', 'קטגוריה:מעשי_טבח_בישראל'
-];
-
-let allEdits = [];
-const proxy = 'https://api.allorigins.win/get?url=';
-
-async function loadEdits() {
-  const today = new Date();
-  const recentDates = [...Array(3)].map((_, i) => {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    return d.toISOString().split('T')[0];
-  });
-
-  for (const target of targets) {
-    const url = `https://he.wikipedia.org/wiki/מיוחד:שינויים_בדפים_המקושרים?target=${encodeURIComponent(target)}&limit=500&days=3&hidebots=1&hideWikibase=1`;
-    const response = await fetch(proxy + encodeURIComponent(url));
-    const data = await response.json();
-    const html = data.contents;
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-
-    let currentDate = '';
-    const listItems = doc.querySelectorAll('ul.special > li, h4');
-    listItems.forEach(item => {
-      if (item.tagName === 'H4') {
-        currentDate = item.textContent.trim();
-      } else if (item.className.includes('mw-changeslist-line')) {
-        const titleEl = item.querySelector('.mw-title');
-        const timeEl = item.querySelector('.mw-changeslist-time');
-        const diffEl = item.querySelector('.mw-diff-bytes');
-
-        if (titleEl && timeEl) {
-          const pageName = titleEl.textContent.trim();
-          const time = timeEl.textContent.trim();
-          const fullDate = convertHebrewDate(currentDate);
-          const formattedDate = fullDate.toISOString().split('T')[0];
-          const formattedTime = time;
-
-          if (recentDates.includes(formattedDate)) {
-            allEdits.push({
-              date: formattedDate,
-              time: formattedTime,
-              title: pageName,
-              category: target,
-              sizeChange: diffEl ? diffEl.textContent.trim() : '',
-              url: `https://he.wikipedia.org/wiki/${encodeURIComponent(pageName)}`
-            });
-          }
-        }
-      }
-    });
-  }
-  processEdits();
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'
 }
 
-function convertHebrewDate(text) {
-  const months = { 'ינואר':1, 'פברואר':2, 'מרץ':3, 'אפריל':4, 'מאי':5, 'יוני':6,
-                   'יולי':7, 'אוגוסט':8, 'ספטמבר':9, 'אוקטובר':10, 'נובמבר':11, 'דצמבר':12 };
-  const parts = text.split(' ');
-  return new Date(parts[2], months[parts[1]]-1, parts[0]);
-}
+# Regular expression patterns
+date_pattern = r'<h4>([^<]+)<'
+title_pattern = r'mw-title.*?>([^<]+)<'
+time_pattern = r'mw-changeslist-time">([^<]+)<'
+diff_pattern = r'mw-diff-bytes"[^>]+>([^<]+)<'
+user_pattern = r'mw-userlink[^>]+><bdi>([^<]+)<'
+comments_pattern = r'"comment">(.*)<span class="mw-tag-markers'
+tags_pattern = r'mw-tag-markers"[^<]*<(.*)</span>'
+tags_in_pattern = r'>([^<]+)</a>'
 
-function processEdits() {
-  const uniqueEdits = {};
-  allEdits.forEach(edit => {
-    const key = edit.date + edit.title;
-    if (!uniqueEdits[key]) {
-      uniqueEdits[key] = { ...edit, editCount: 1 };
-    } else {
-      uniqueEdits[key].editCount++;
+def heb_month(heb_month):
+    months = {
+        'ינואר': 1, 'פברואר': 2, 'מרץ': 3, 'אפריל': 4, 'מאי': 5, 'יוני': 6,
+        'יולי': 7, 'אוגוסט': 8, 'ספטמבר': 9, 'אוקטובר': 10, 'נובמבר': 11, 'דצמבר': 12
     }
-  });
+    for key, value in months.items():
+        if key in heb_month:
+            return value
+    raise Exception('not a hebrew month: ' + heb_month)
 
-  const finalEdits = Object.values(uniqueEdits);
-  populateFilters(finalEdits);
-  populateTable(finalEdits);
-}
+def heb_date_to_date(heb_date):
+    try:
+        splitted = heb_date.split(' ')
+        day = int(splitted[0])
+        month = heb_month(splitted[1])
+        year = int(splitted[2])
+        return datetime.datetime(year, month, day)
+    except:
+        return None
 
-function populateFilters(edits) {
-  const categorySet = new Set(edits.map(e => e.category));
-  const dateSet = new Set(edits.map(e => e.date));
+def remove_html_tags(text):
+    html_pattern = re.compile(r'<.*?>')
+    clean_text = re.sub(html_pattern, '', text)
+    return clean_text
 
-  const catSelect = document.getElementById('categoryFilter');
-  categorySet.forEach(cat => {
-    const opt = document.createElement('option');
-    opt.value = cat;
-    opt.textContent = cat;
-    catSelect.appendChild(opt);
-  });
+@app.route('/')
+def index():
+    results = []
+    now = str(datetime.datetime.now())
 
-  const dateSelect = document.getElementById('dateFilter');
-  [...dateSet].sort().forEach(date => {
-    const opt = document.createElement('option');
-    opt.value = date;
-    opt.textContent = date;
-    dateSelect.appendChild(opt);
-  });
+    for target in targets:
+        url = f'https://he.wikipedia.org/wiki/מיוחד:שינויים_בדפים_המקושרים?hidebots=1&hidecategorization=1&hideWikibase=1&target={target}&limit=1000&days=30'
+        try:
+            resp = requests.get(url, headers=headers)
+            resp.raise_for_status()
+            html = resp.text.replace('\n', '')
+            ils = html.split('<li ')
+            date_str = ''
+            date = None
 
-  catSelect.addEventListener('change', applyFilters);
-  dateSelect.addEventListener('change', applyFilters);
-}
+            for il in ils:
+                if '<h4>' in il:
+                    date_match = re.search(date_pattern, il)
+                    if date_match:
+                        date_str = date_match[1]
+                        date = heb_date_to_date(date_str)
+                line = il.split('</li>')[0]
+                if 'mw-changeslist-line' in line:
+                    title = ''
+                    title_match = re.search(title_pattern, line)
+                    if title_match:
+                        title = title_match[1]
+                    
+                    date_with_time = None
+                    time_match = re.search(time_pattern, line)
+                    if time_match and date:
+                        time_found = time_match[1].split(':')
+                        try:
+                            date_with_time = datetime.datetime(
+                                date.year, date.month, date.day, 
+                                int(time_found[0]), int(time_found[1])
+                            )
+                        except:
+                            date_with_time = None
 
-function applyFilters() {
-  const selectedCat = document.getElementById('categoryFilter').value;
-  const selectedDate = document.getElementById('dateFilter').value;
+                    diff = ''
+                    diff_match = re.search(diff_pattern, line)
+                    if diff_match:
+                        diff = diff_match[1]
 
-  let filtered = Object.values(allEdits);
+                    user = ''
+                    user_match = re.search(user_pattern, line)
+                    if user_match:
+                        user = user_match[1]
 
-  if (selectedCat) filtered = filtered.filter(e => e.category === selectedCat);
-  if (selectedDate) filtered = filtered.filter(e => e.date === selectedDate);
+                    comments = ''
+                    comments_match = re.search(comments_pattern, line)
+                    if comments_match:
+                        comments = remove_html_tags(comments_match[1])
 
-  processEdits();
-}
+                    tags = ''
+                    tags_match = re.search(tags_pattern, line)
+                    if tags_match:
+                        tags = tags_match[1]
+                        tags_in_match = re.findall(tags_in_pattern, tags)
+                        tags = ','.join(tags_in_match)
 
-function populateTable(edits) {
-  const tbody = document.querySelector('#editsTable tbody');
-  tbody.innerHTML = '';
-  edits.forEach(edit => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${edit.date}</td>
-      <td>${edit.time}</td>
-      <td>${edit.title}</td>
-      <td>${edit.category}</td>
-      <td>${edit.sizeChange}</td>
-      <td>${edit.editCount}</td>
-      <td><a href="${edit.url}" target="_blank">צפה</a></td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
+                    results.append({
+                        'target': target,
+                        'date_with_time': date_with_time,
+                        'title': title,
+                        'diff': diff,
+                        'user': user,
+                        'comments': comments,
+                        'tags': tags,
+                        'run_date': now
+                    })
+        except requests.RequestException as e:
+            print(f"Error fetching {target}: {e}")
+            continue
 
-document.addEventListener('DOMContentLoaded', loadEdits);
-</script>
+    df = pd.DataFrame(results)
+    # Convert DataFrame to list of dicts for template rendering
+    data = df.to_dict(orient='records')
+    return render_template('index.html', data=data)
 
-</body>
-</html>
+if __name__ == '__main__':
+    app.run(debug=True)
