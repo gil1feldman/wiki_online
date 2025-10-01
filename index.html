@@ -2,17 +2,17 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <title>סטטיסטיקת ערך ויקיפדיה • מתוקן (KPI)</title>
+  <title>סטטיסטיקת ערך ויקיפדיה • ניתוח ותובנות</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
-<main class="max-w-5xl mx-auto p-4">
+<main class="max-w-6xl mx-auto p-4">
   <header class="mb-4">
     <h1 class="text-2xl font-bold">סטטיסטיקת ערך ויקיפדיה</h1>
-    <p class="text-sm text-gray-600">חקירת צפיות ועריכות ‐ ערך יחיד או השוואה.</p>
+    <p class="text-sm text-gray-600">חקירת צפיות ועריכות ‐ ערך יחיד או השוואה; עם החלקה, חריגות, טווח קודם וקורלציה.</p>
   </header>
 
   <!-- Controls -->
@@ -34,7 +34,16 @@
         <option value="365">365 ימים אחרונים</option>
         <option value="all">מאז ומעולם</option>
       </select>
-      <div class="ms-auto flex gap-2">
+
+      <div class="flex items-center gap-4 ml-auto">
+        <label class="inline-flex items-center gap-2 text-sm">
+          <input id="toggleSmoothing" type="checkbox" class="accent-blue-600">
+          החלק מגמה
+        </label>
+        <label class="inline-flex items-center gap-2 text-sm">
+          <input id="toggleComparePrev" type="checkbox" class="accent-blue-600">
+          השווה לטווח קודם
+        </label>
         <button id="loadDataButton" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">הצג נתונים</button>
         <button id="downloadCSVButton" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition">הורד CSV</button>
       </div>
@@ -47,7 +56,7 @@
     <div id="errorMessage" class="mt-2 text-red-600 font-bold hidden" role="alert"></div>
   </section>
 
-  <!-- KPI: כרטיסים נפרדים לכל ערך -->
+  <!-- KPI per article -->
   <section id="kpiContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 hidden"></section>
 
   <div id="wikiLinks" class="mt-3 text-blue-700 font-bold"></div>
@@ -71,28 +80,84 @@
     </div>
   </section>
 
-  <section id="recentEdits" class="mt-8"></section>
+  <!-- Insights sections -->
+  <section id="insights" class="mt-6 space-y-4">
+    <div id="anomaliesBox" class="hidden bg-white border border-amber-300 rounded p-4"></div>
+    <div id="corrBox" class="hidden bg-white border border-gray-200 rounded p-4"></div>
+  </section>
 </main>
 
 <div id="toast" class="hidden fixed top-4 left-1/2 -translate-x-1/2 bg-black text-white px-4 py-2 rounded shadow z-50">הנתונים נטענו</div>
 
 <script>
+/* ====================== STATE ====================== */
 let viewsChart, editsChart;
 const state = {
   articles: [
     { title: '', dates: [], views: [], edits: [], createdDate: null },
     { title: '', dates: [], views: [], edits: [], createdDate: null }
-  ]
+  ],
+  features: { smoothing: false, comparePrev: false }
 };
 
-/* ---------- Utils ---------- */
+/* ====================== UTILS ====================== */
 function show(e){e.classList.remove('hidden')} function hide(e){e.classList.add('hidden')}
 function toast(msg='הנתונים נטענו'){const t=document.getElementById('toast');t.textContent=msg;show(t);setTimeout(()=>hide(t),1800)}
 function formatDisplay(d){try{const date=new Date(d);return date.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'2-digit'}).replace(/(\d{2})\.(\d{2})\.(\d{2})/,'$1/$2/$3')}catch{return d}}
 function parseDisplayDate(s,g='daily'){try{if(g==='monthly'){const[m,y]=s.split('/');return new Date(`20${y}-${m}-01`)}else{const[d,m,y]=s.split('/');return new Date(`20${y}-${m}-${d}`)}}catch{return new Date()}}
 function generateMonthlyDates(startDate,endDate){const out=[];let c=new Date(startDate.getFullYear(),startDate.getMonth(),1);const end=new Date(endDate.getFullYear(),endDate.getMonth(),1);while(c<=end){const m=String(c.getMonth()+1).padStart(2,'0');const y=String(c.getFullYear()).slice(2);out.push(`${m}/${y}`);c.setMonth(c.getMonth()+1)}return out.sort((a,b)=>parseDisplayDate(a,'monthly')-parseDisplayDate(b,'monthly'))}
 
-/* ---------- URL state with safe fallback ---------- */
+/* Smoothing (SMA/EMA) */
+function sma(arr, k=7){
+  const out = Array(arr.length).fill(null);
+  let sum = 0, q = [];
+  for (let i=0; i<arr.length; i++){
+    const v = arr[i] ?? 0;
+    q.push(v); sum += v;
+    if (q.length > k) sum -= q.shift();
+    if (q.length === k) out[i] = Math.round(sum / k);
+  }
+  return out;
+}
+
+/* Anomalies (Median / MAD) */
+function median(arr){const a=arr.filter(v=>v!=null).slice().sort((x,y)=>x-y);if(!a.length)return 0;const m=Math.floor(a.length/2);return a.length%2?a[m]:Math.round((a[m-1]+a[m])/2)}
+function mad(arr){const m=median(arr);const dev=arr.filter(v=>v!=null).map(v=>Math.abs(v-m));return median(dev)||1}
+function findSpikes(dates, values, thresh=4){
+  const m = median(values), M = mad(values);
+  const res = [];
+  for (let i=0;i<values.length;i++){
+    const v = values[i]; if (v==null) continue;
+    const score = Math.abs(v - m) / M;
+    if (score >= thresh) res.push({ idx: i, date: dates[i], value: v, score: +score.toFixed(2) });
+  }
+  return res;
+}
+
+/* Prev period & misc */
+function sumNonNull(arr){return arr.reduce((s,v)=>s+(v||0),0)}
+function shiftSeries(values, shift){
+  const out = Array(values.length).fill(null);
+  for (let i=0;i<values.length;i++){const j=i-shift; out[i]=(j>=0)?values[j]:null;}
+  return out;
+}
+
+/* Correlation (Pearson) */
+function pearson(x, y){
+  const xs=[], ys=[];
+  for (let i=0;i<x.length;i++){const a=x[i], b=y[i]; if(a!=null && b!=null){xs.push(a); ys.push(b);}}
+  if (xs.length < 3) return null;
+  const n=xs.length, sum=a=>a.reduce((s,v)=>s+v,0);
+  const sumx=sum(xs), sumy=sum(ys);
+  const sumxx=sum(xs.map(v=>v*v)), sumyy=sum(ys.map(v=>v*v));
+  const sumxy=sum(xs.map((v,i)=>v*ys[i]));
+  const num = n*sumxy - sumx*sumy;
+  const den = Math.sqrt((n*sumxx - sumx*sumx)*(n*sumyy - sumy*sumy));
+  if (!den) return 0;
+  return +(num/den).toFixed(2);
+}
+
+/* URL state with safe fallback */
 function isSafeToReplaceState(){try{const p=location.protocol;const http=p==='http:'||p==='https:';const isTop=window.self===window.top;const notAbout=!location.href.startsWith('about:');return http&&isTop&&notAbout}catch{return false}}
 function saveStateToURL(){
   try{
@@ -101,6 +166,8 @@ function saveStateToURL(){
     p.set('p2',document.getElementById('pageTitle2').value.trim());
     p.set('g',document.getElementById('granularitySelect').value);
     p.set('r',document.getElementById('rangeSelect').value);
+    p.set('sm', document.getElementById('toggleSmoothing').checked ? '1' : '0');
+    p.set('cp', document.getElementById('toggleComparePrev').checked ? '1' : '0');
     const qs=p.toString();
     if(isSafeToReplaceState()) history.replaceState(null,'',`${location.pathname}?${qs}`);
     else location.hash=`state=${encodeURIComponent(qs)}`;
@@ -112,20 +179,38 @@ function loadStateFromURL(){
     if(isSafeToReplaceState()) search=location.search;
     else if(location.hash.startsWith('#state=')) search='?'+decodeURIComponent(location.hash.slice('#state='.length));
     const params=new URLSearchParams(search);
-    const p1=params.get('p1'),p2=params.get('p2'),g=params.get('g'),r=params.get('r');
-    if(p1) document.getElementById('pageTitle1').value=p1;
-    if(p2) document.getElementById('pageTitle2').value=p2;
-    if(g) document.getElementById('granularitySelect').value=g;
-    if(r) document.getElementById('rangeSelect').value=r;
+    const get = k => params.get(k);
+    if(get('p1')) document.getElementById('pageTitle1').value=get('p1');
+    if(get('p2')) document.getElementById('pageTitle2').value=get('p2');
+    if(get('g')) document.getElementById('granularitySelect').value=get('g');
+    if(get('r')) document.getElementById('rangeSelect').value=get('r');
+    if(get('sm')) document.getElementById('toggleSmoothing').checked = get('sm')==='1';
+    if(get('cp')) document.getElementById('toggleComparePrev').checked = get('cp')==='1';
   }catch{}
 }
 
-/* ---------- Cache (sessionStorage, 10m) ---------- */
+/* Local storage for toggles */
+function loadTogglesFromStorage(){
+  try{
+    const sm = localStorage.getItem('toggleSmoothing');
+    const cp = localStorage.getItem('toggleComparePrev');
+    if (sm !== null) document.getElementById('toggleSmoothing').checked = sm === '1';
+    if (cp !== null) document.getElementById('toggleComparePrev').checked = cp === '1';
+  } catch {}
+}
+function saveTogglesToStorage(){
+  try{
+    localStorage.setItem('toggleSmoothing', document.getElementById('toggleSmoothing').checked ? '1' : '0');
+    localStorage.setItem('toggleComparePrev', document.getElementById('toggleComparePrev').checked ? '1' : '0');
+  } catch {}
+}
+
+/* ====================== CACHE ====================== */
 const CACHE_TTL_MS=10*60*1000;
 function cacheGet(k){try{const raw=sessionStorage.getItem(k);if(!raw) return null;const {ts,data}=JSON.parse(raw);if(Date.now()-ts>CACHE_TTL_MS){sessionStorage.removeItem(k);return null}return data}catch{return null}}
 function cacheSet(k,d){try{sessionStorage.setItem(k,JSON.stringify({ts:Date.now(),data:d}))}catch{}}
 
-/* ---------- API ---------- */
+/* ====================== API ====================== */
 async function fetchViewsData(title,startStr,endStr){
   const key=`views:${title}:${startStr}:${endStr}`;const c=cacheGet(key);if(c) return c;
   try{
@@ -182,7 +267,7 @@ async function fetchRecentEdits(title){
   }catch(e){console.error('recent',e);return []}
 }
 
-/* ---------- Render ---------- */
+/* ====================== RENDER ====================== */
 function renderWikiLinks(articles){
   document.getElementById('wikiLinks').innerHTML = articles.map(a=>{
     const enc=encodeURIComponent(a.title);
@@ -217,31 +302,54 @@ function renderSummaries(articles,displayDates,infos){
 function renderKPIsPerArticle(articles, infos, granularity){
   const wrap=document.getElementById('kpiContainer'); let html='';
   const avgLabel = granularity==='monthly' ? 'ממוצע לחודש' : 'ממוצע ליום';
+
   for(let i=0;i<articles.length;i++){
     const a=state.articles[articles[i].index]; const info=infos[i];
-    const views=a.views.filter(v=>v!=null); 
-    const total=views.reduce((s,v)=>s+(v||0),0); 
-    const units=views.length||1; // ימים או חודשים בהתאם לגרנולריות
-    let ago='לא זמין'; 
+    const views=a.views.filter(v=>v!=null);
+    const total=views.reduce((s,v)=>s+(v||0),0);
+    const units=views.length||1; // ימים/חודשים בהתאם לגרנולריות
+
+    // Prev-period Δ%
+    const prevCount = units; // אותו אורך חלון
+    const curTotal = total;
+    const prevTotal = sumNonNull(views.slice(0, Math.max(0, views.length - prevCount)));
+    const deltaPct = (prevTotal && curTotal) ? Math.round(((curTotal - prevTotal) / prevTotal) * 100) : 0;
+    const deltaColor = deltaPct>=0 ? 'text-green-600' : 'text-red-600';
+    const deltaHtml = prevTotal ? `<span class="text-xs ${deltaColor} ml-1">(${deltaPct>=0?'+':''}${deltaPct}%)</span>` : '';
+
+    // זמן מאז עריכה
+    let ago='לא זמין';
     if(info&&info.lastEdit?.timestamp){
       const diff=Date.now()-new Date(info.lastEdit.timestamp).getTime();
       const hrs=Math.floor(diff/3600000);
       ago=hrs<48?`${hrs} שעות`:`${Math.floor(hrs/24)} ימים`;
     }
+
     html+=`
       <div class="bg-white p-4 rounded shadow-sm border border-gray-200">
         <div class="font-semibold mb-2">${a.title}</div>
         <div class="grid grid-cols-3 gap-3">
-          <div><div class="text-gray-500 text-sm">סה״כ צפיות</div><div class="text-2xl font-bold">${total.toLocaleString()}</div></div>
-          <div><div class="text-gray-500 text-sm">${avgLabel}</div><div class="text-2xl font-bold">${Math.round(total/units).toLocaleString()}</div></div>
-          <div><div class="text-gray-500 text-sm">מאז עריכה אחרונה</div><div class="text-2xl font-bold">${ago}</div></div>
+          <div>
+            <div class="text-gray-500 text-sm">סה״כ צפיות</div>
+            <div class="text-2xl font-bold">${curTotal.toLocaleString()}</div>
+          </div>
+          <div>
+            <div class="text-gray-500 text-sm">${avgLabel} ${deltaHtml}</div>
+            <div class="text-2xl font-bold">${Math.round(curTotal/units).toLocaleString()}</div>
+          </div>
+          <div>
+            <div class="text-gray-500 text-sm">מאז עריכה אחרונה</div>
+            <div class="text-2xl font-bold">${ago}</div>
+          </div>
         </div>
       </div>`;
   }
   wrap.innerHTML=html; show(wrap);
 }
 function renderRecentEdits(articles, recentsList){
-  const box=document.getElementById('recentEdits'); let html='';
+  const box=document.getElementById('recentEdits') || document.createElement('div');
+  box.id='recentEdits';
+  let html='';
   for(let i=0;i<articles.length;i++){
     const title=articles[i].title, recents=recentsList[i]||[];
     if(recents.length>1){
@@ -250,28 +358,96 @@ function renderRecentEdits(articles, recentsList){
       html+='</ul>';
     }
   }
+  if (!box.parentNode) document.querySelector('main').appendChild(box);
   box.innerHTML=html;
 }
+function renderAnomalies(primaryArticle){
+  const box = document.getElementById('anomaliesBox');
+  const spikes = findSpikes(primaryArticle.dates, primaryArticle.views, 4); // 4 MAD
+  if (!spikes.length){ hide(box); box.innerHTML=''; return; }
+  box.innerHTML = `
+    <div class="font-semibold mb-2">ימים חריגים בצפיות (${spikes.length}):</div>
+    <ul class="list-disc pr-6">
+      ${spikes.slice(0,12).map(s=>`<li><b>${s.date}</b> — ${s.value.toLocaleString()} צפיות <span class="text-xs text-amber-700">(MAD=${s.score})</span></li>`).join('')}
+    </ul>`;
+  show(box);
+}
+function renderCorrelation(articles){
+  const box = document.getElementById('corrBox');
+  let html = `<div class="font-semibold mb-2">קורלציה בין צפיות לעריכות:</div><ul class="list-disc pr-6">`;
+  for (const a of articles){
+    const st = state.articles[a.index];
+    const r = pearson(st.views, st.edits);
+    const color = r==null ? 'text-gray-500' : (r>=0 ? 'text-green-700' : 'text-red-700');
+    const val = r==null ? 'לא מספיק נתונים' : r.toFixed(2);
+    html += `<li><b>${st.title}:</b> <span class="${color}">${val}</span></li>`;
+  }
+  html += `</ul>`;
+  box.innerHTML = html;
+  show(box);
+}
 function renderCharts(articles, displayDates, granularity){
+  const labels = displayDates.slice();
+  const smoothingOn = !!state.features.smoothing;
+  const comparePrevOn = !!state.features.comparePrev;
+
   // Views
   if(viewsChart) viewsChart.destroy(); show(document.getElementById('viewsSummary'));
-  const labels=displayDates.slice();
+  const baseDatasets = articles.map((a,i)=>({
+    label:`צפיות - ${a.title}`,
+    data:state.articles[a.index].views,
+    borderColor:i===0?'blue':'green',
+    fill:false, spanGaps:true
+  }));
+
+  // Smoothing layer (SMA)
+  const win = (granularity === 'monthly') ? 3 : 7;
+  const smoothingDatasets = smoothingOn ? articles.map((a,i)=>({
+    label:`מגמה (${win}) - ${a.title}`,
+    data:sma(state.articles[a.index].views, win),
+    borderColor:i===0?'#1f78b4':'#33a02c',
+    borderDash:[6,4],
+    fill:false, spanGaps:true, pointRadius:0
+  })) : [];
+
+  // Prev period shifted dataset
+  const prevDatasets = comparePrevOn ? articles.map((a,i)=>{
+    const series = state.articles[a.index].views;
+    const shift = series.filter(v=>v!=null).length || 0; // הזחה בגודל החלון הנוכחי
+    return {
+      label:`טווח קודם - ${a.title}`,
+      data:shiftSeries(series, shift),
+      borderColor:i===0?'#1f78b4':'#33a02c',
+      borderDash:[2,2],
+      fill:false, spanGaps:true, pointRadius:0
+    };
+  }) : [];
+
   viewsChart=new Chart(document.getElementById('viewsChart'),{
     type:'line',
-    data:{labels,datasets:articles.map((a,i)=>({label:`צפיות - ${a.title}`,data:state.articles[a.index].views,borderColor:i===0?'blue':'green',fill:false,spanGaps:true}))},
-    options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true},x:{ticks:{autoSkip:true,maxTicksLimit:24,callback:(v,idx)=>granularity==='monthly'?labels[idx].replace('/','/20'):labels[idx]}}},plugins:{datalabels:{display:false},legend:{display:articles.length>1}}},
+    data:{labels,datasets:[...baseDatasets,...smoothingDatasets,...prevDatasets]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{y:{beginAtZero:true}, x:{ticks:{autoSkip:true,maxTicksLimit:24,callback:(v,idx)=>granularity==='monthly'?labels[idx].replace('/','/20'):labels[idx]}}},
+      plugins:{datalabels:{display:false},legend:{display:true}}
+    },
     plugins:[ChartDataLabels]
   });
+
   // Edits
   if(editsChart) editsChart.destroy(); show(document.getElementById('editsSummary'));
   editsChart=new Chart(document.getElementById('editsChart'),{
     type:'bar',
     data:{labels,datasets:articles.map((a,i)=>({label:`עריכות - ${a.title}`,data:state.articles[a.index].edits,backgroundColor:i===0?'orange':'purple'}))},
-    options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true},x:{ticks:{autoSkip:true,maxTicksLimit:24,callback:(v,idx)=>granularity==='monthly'?labels[idx].replace('/','/20'):labels[idx]}}},plugins:{legend:{display:articles.length>1}}}
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{y:{beginAtZero:true}, x:{ticks:{autoSkip:true,maxTicksLimit:24,callback:(v,idx)=>granularity==='monthly'?labels[idx].replace('/','/20'):labels[idx]}}},
+      plugins:{legend:{display:articles.length>1}}
+    }
   });
 }
 
-/* ---------- Controller ---------- */
+/* ====================== CONTROLLER ====================== */
 async function loadData(){
   const loading=document.getElementById('loadingIndicator'); const err=document.getElementById('errorMessage');
   try{
@@ -279,23 +455,28 @@ async function loadData(){
     const t1=document.getElementById('pageTitle1').value.trim();
     const t2=document.getElementById('pageTitle2').value.trim();
     if(!t1&&!t2){err.textContent='נא להזין לפחות שם ערך אחד';show(err);hide(loading);return}
+
+    // update feature toggles
+    state.features.smoothing = document.getElementById('toggleSmoothing').checked;
+    state.features.comparePrev = document.getElementById('toggleComparePrev').checked;
+    saveTogglesToStorage();
     saveStateToURL();
 
     const range=document.getElementById('rangeSelect').value;
     const granularity=document.getElementById('granularitySelect').value;
     const endDate=new Date(); endDate.setDate(endDate.getDate()-1);
-    const apiStart=new Date('2015-07-01'); // תחילת נתוני Pageviews
+    const apiStart=new Date('2015-07-01');
 
     const articles=[{title:t1,index:0},{title:t2,index:1}].filter(a=>a.title);
     const infos=await Promise.all(articles.map(a=>fetchPageInfo(a.title)));
 
-    // אתחול סטייט
+    // init state
     for(let i=0;i<articles.length;i++){
       const a=articles[i]; const info=infos[i];
       state.articles[a.index]={title:a.title,dates:[],views:[],edits:[],createdDate:info.created?new Date(info.created.timestamp):apiStart};
     }
 
-    // "מאז ומעולם": מתחילים מהתאריך המוקדם ביותר מבין הערכים, אך לא לפני apiStart
+    // start date: "all" → המוקדם ביותר בין הערכים (לא לפני apiStart); אחרת לפי הטווח הנבחר
     let startDate;
     if(range==='all'){
       const minCreated=new Date(Math.min(...articles.map((a,i)=>state.articles[a.index].createdDate.getTime())));
@@ -308,7 +489,7 @@ async function loadData(){
 
     renderWikiLinks(articles);
 
-    // בניית טווח תאריכים מאוחד
+    // build dates union
     let dateSet=new Set();
     if(granularity==='monthly'){
       generateMonthlyDates(startDate,endDate).forEach(d=>dateSet.add(d));
@@ -318,10 +499,10 @@ async function loadData(){
     }
     const displayDates=Array.from(dateSet).sort((a,b)=>parseDisplayDate(a,granularity)-parseDisplayDate(b,granularity));
 
-    // טעינת נתונים לכל ערך ומיפוי לפי תאריך יצירה (לפניו -> null/0)
+    // fetch per-article
     const perArticle=await Promise.all(articles.map(async (a)=>{
       const [viewsData, recents]=await Promise.all([fetchViewsData(a.title,startStr,endStr), fetchRecentEdits(a.title)]);
-      // צפיות
+      // Views mapped (respect creation date)
       let mappedViews=[];
       if(granularity==='monthly'){
         const map=new Map();
@@ -337,7 +518,7 @@ async function loadData(){
       state.articles[a.index].views=mappedViews;
       state.articles[a.index].dates=displayDates;
 
-      // עריכות
+      // Edits mapped (0 לפני יצירה)
       const edits=await fetchEditsData(a.title,startDate,endDate,granularity,displayDates);
       state.articles[a.index].edits = displayDates.map((d,idx)=> {
         const dt=parseDisplayDate(d,granularity);
@@ -350,10 +531,18 @@ async function loadData(){
 
     if(!articles.length || !displayDates.length){err.textContent='לא נמצאו נתונים להצגה';show(err);hide(loading);return}
 
+    // render
     renderSummaries(articles,displayDates,infos);
-    renderKPIsPerArticle(articles,infos,granularity);  // ← מעדכן את כותרת ה־KPI לפי גרנולריות
+    renderKPIsPerArticle(articles,infos,granularity);
     renderCharts(articles,displayDates,granularity);
     renderRecentEdits(articles,recentsList);
+
+    // Insights (1) anomalies on first article series
+    const primary = state.articles[ (articles[0]||{}).index ];
+    if (primary) renderAnomalies(primary);
+
+    // Insights (2) correlation per article
+    renderCorrelation(articles);
 
     hide(loading); toast();
   }catch(e){
@@ -364,7 +553,7 @@ async function loadData(){
   }
 }
 
-/* ---------- CSV ---------- */
+/* ====================== CSV ====================== */
 function downloadCSV(){
   try{
     const articles=state.articles.filter(a=>a.title);
@@ -376,12 +565,18 @@ function downloadCSV(){
   }catch(e){console.error('downloadCSV',e); const err=document.getElementById('errorMessage'); err.textContent='אירעה שגיאה בהורדת הקובץ'; show(err);}
 }
 
-/* ---------- Init ---------- */
+/* ====================== INIT ====================== */
 document.addEventListener('DOMContentLoaded',()=>{
+  loadTogglesFromStorage();
   loadStateFromURL();
+
   const runOnEnter=ev=>{if(ev.key==='Enter') loadData()};
   document.getElementById('pageTitle1').addEventListener('keydown',runOnEnter);
   document.getElementById('pageTitle2').addEventListener('keydown',runOnEnter);
+
+  document.getElementById('toggleSmoothing').addEventListener('change', ()=>{ saveTogglesToStorage(); });
+  document.getElementById('toggleComparePrev').addEventListener('change', ()=>{ saveTogglesToStorage(); });
+
   document.getElementById('loadDataButton').addEventListener('click',loadData);
   document.getElementById('downloadCSVButton').addEventListener('click',downloadCSV);
 });
