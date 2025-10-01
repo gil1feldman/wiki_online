@@ -1,168 +1,715 @@
-from flask import Flask, render_template
-import requests
-import re
-import pandas as pd
-import datetime
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <!-- ====== Meta & Libs ====== -->
+  <meta charset="UTF-8" />
+  <title>סטטיסטיקת ערך ויקיפדיה • חדשה</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <style>
+    /* כיתוב גרפים קטן ונקי */
+    canvas { background: #fff; }
+  </style>
+</head>
 
-app = Flask(__name__)
+<body class="bg-gray-100 text-gray-900 font-sans">
+<!-- ============================== APP ============================== -->
+<main class="max-w-5xl mx-auto p-4">
+  <!-- ========= Header ========= -->
+  <header class="mb-4">
+    <h1 class="text-2xl font-bold">סטטיסטיקת ערך ויקיפדיה</h1>
+    <p class="text-sm text-gray-600">חקירת צפיות ועריכות ‐ ערך יחיד או השוואה בין שני ערכים.</p>
+  </header>
 
-# List of Wikipedia categories
-targets = [
-    'קטגוריה:עיתונאים_ישראלים',
-    'קטגוריה:עיתונאיות_ישראליות',
-    'קטגוריה:חברי_הכנסת_העשרים_וחמש',
-    'קטגוריה:שופטי_בית_המשפט_העליון',
-    'קטגוריה:שופטי_בית_המשפט_העליון_בדימוס',
-    'קטגוריה:המחאה_נגד_בנימין_נתניהו:_אישים',
-    'קטגוריה:מפקדי_אוגדות_במלחמת_חרבות_ברזל',
-    'קטגוריה:חברי_המטה_הכללי_של_צה"ל',
-    'קטגוריה:תתי-אלופים_בצה"ל',
-    'קטגוריה:מעשי_טבח_בישראל',
-    'קטגוריה:ישראל:_פיגועי_התאבדות',
-    'קטגוריה:ישראל:_מינהל_ציבורי',
-    'קטגוריה:מחאה_בישראל',
-    'קטגוריה:תהליך_השלום_הישראלי-פלסטיני',
-    'קטגוריה:הסכסוך_הישראלי-פלסטיני',
-    'קטגוריה:ישראל:_משפט_חוקתי',
-    'קטגוריה:עובדי_ציבור_ישראלים',
-    'קטגוריה:ראשי_השב"כ',
-    'קטגוריה:ניצבי_משטרת_ישראל',
-    'קטגוריה:פעילים_חברתיים_ישראלים',
-    'קטגוריה:חברי_הכנסת_מטעם_מרצ',
-    'קטגוריה:ראשי_ממשלת_ישראל',
-    'קטגוריה:ליברליזם',
-    'קטגוריה:ישראל:_מפלגות',
-    'קטגוריה:עסקאות_חילופי_שבויים',
-    'קטגוריה:החטיפה_לרצועת_עזה_במלחמת_חרבות_ברזל',
-    'קטגוריה:ישראל:_יחסי_חוץ_לפי_מדינה',
-    'קטגוריה:ישראל:_ועדות_חקירה_ממלכתיות',
-    'קטגוריה:גיוס_בני_ישיבות',
-    'קטגוריה:פעילי_אחים_לנשק',
-    'קטגוריה:ישראל:_ארגוני_סיוע_משפטי',
-    'קטגוריה:החטופים_הישראלים_ברצועת_עזה_במלחמת_חרבות_ברזל',
-    'קטגוריה:ויקיפדיה:_ערכים_שמתקיים_לגביהם_דיון_חשיבות_אנציקלופדית',
-    'קטגוריה:ויקיפדיה:_הצבעות_מחיקה_ושחזור'
-]
+  <!-- ========= Controls ========= -->
+  <section aria-label="בקרות" class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+    <div class="flex flex-wrap gap-3 items-center">
+      <input id="pageTitle1" type="text" autocomplete="off"
+             placeholder="שם ערך ראשון"
+             class="p-2 border border-gray-300 rounded w-full sm:w-auto flex-1 min-w-[160px]">
+      <input id="pageTitle2" type="text" autocomplete="off"
+             placeholder="שם ערך שני (לא חובה)"
+             class="p-2 border border-gray-300 rounded w-full sm:w-auto flex-1 min-w-[160px]">
+      <select id="granularitySelect" class="p-2 border border-gray-300 rounded">
+        <option value="daily" selected>רמת פירוט יומית</option>
+        <option value="monthly">רמת פירוט חודשית</option>
+      </select>
+      <select id="rangeSelect" class="p-2 border border-gray-300 rounded">
+        <option value="7">7 ימים אחרונים</option>
+        <option value="30" selected>30 ימים אחרונים</option>
+        <option value="90">90 ימים אחרונים</option>
+        <option value="180">180 ימים אחרונים</option>
+        <option value="365">365 ימים אחרונים</option>
+        <option value="all">מאז ומעולם</option>
+      </select>
 
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'
+      <div class="ms-auto flex gap-2">
+        <button id="loadDataButton"
+                class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+          הצג נתונים
+        </button>
+        <button id="downloadCSVButton"
+                class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition">
+          הורד CSV
+        </button>
+      </div>
+    </div>
+
+    <!-- עזרי נגישות/פידבק -->
+    <div id="loadingIndicator" class="hidden flex items-center gap-2 mt-3" aria-live="polite">
+      <div class="animate-spin rounded-full h-6 w-6 border-t-4 border-blue-600"></div>
+      <span class="text-sm">טוען נתונים...</span>
+    </div>
+    <div id="errorMessage" class="mt-2 text-red-600 font-bold hidden" role="alert"></div>
+  </section>
+
+  <!-- ========= KPI Bar ========= -->
+  <section id="kpiBar" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 hidden">
+    <div class="bg-white p-4 rounded shadow-sm border border-gray-200">
+      <div class="text-gray-500 text-sm">סה״כ צפיות</div>
+      <div id="kpiViewsTotal" class="text-2xl font-bold">־</div>
+    </div>
+    <div class="bg-white p-4 rounded shadow-sm border border-gray-200">
+      <div class="text-gray-500 text-sm">ממוצע ליום</div>
+      <div id="kpiViewsAvg" class="text-2xl font-bold">־</div>
+    </div>
+    <div class="bg-white p-4 rounded shadow-sm border border-gray-200">
+      <div class="text-gray-500 text-sm">זמן מאז עריכה אחרונה</div>
+      <div id="kpiLastEditAgo" class="text-2xl font-bold">־</div>
+    </div>
+  </section>
+
+  <!-- ========= Links ========= -->
+  <div id="wikiLinks" class="mt-3 text-blue-700 font-bold"></div>
+
+  <!-- ========= Page Summaries ========= -->
+  <section id="pageInfo" class="mt-3 text-right text-base leading-7 bg-white p-4 rounded shadow-sm border border-gray-200 hidden">
+    <span class="block font-bold text-lg mb-1">סטטיסטיקת ערכים</span>
+    <div id="summaryContent"></div>
+  </section>
+
+  <!-- ========= Charts ========= -->
+  <section class="mt-4">
+    <h2 id="viewsSummary" class="font-bold text-lg hidden">צפיות לאורך זמן</h2>
+    <div class="w-full overflow-x-auto">
+      <canvas id="viewsChart" class="!max-h-[42vh] w-full"></canvas>
+    </div>
+  </section>
+
+  <section class="mt-8">
+    <h2 id="editsSummary" class="font-bold text-lg hidden">עריכות לאורך זמן</h2>
+    <div class="w-full overflow-x-auto">
+      <canvas id="editsChart" class="!max-h-[42vh] w-full"></canvas>
+    </div>
+  </section>
+
+  <!-- ========= Recent Edits ========= -->
+  <section id="recentEdits" class="mt-8"></section>
+</main>
+
+<!-- ========= Toast ========= -->
+<div id="toast" class="hidden fixed top-4 left-1/2 -translate-x-1/2 bg-black text-white px-4 py-2 rounded shadow z-50">
+  הפעולה הושלמה
+</div>
+
+<!-- ============================== SCRIPTS ============================== -->
+<script>
+/* **********************************************************************
+   *                              STATE
+   ********************************************************************** */
+let viewsChart, editsChart;
+const state = {
+  articles: [
+    { title: '', dates: [], views: [], edits: [], createdDate: null },
+    { title: '', dates: [], views: [], edits: [], createdDate: null }
+  ]
+};
+
+/* **********************************************************************
+   *                           UTILITIES
+   ********************************************************************** */
+function show(el) { el.classList.remove('hidden'); }
+function hide(el) { el.classList.add('hidden'); }
+function toast(msg = 'הנתונים נטענו') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  show(t);
+  setTimeout(() => hide(t), 1800);
 }
 
-# Regular expression patterns
-date_pattern = r'<h4>([^<]+)<'
-title_pattern = r'mw-title.*?>([^<]+)<'
-time_pattern = r'mw-changeslist-time">([^<]+)<'
-diff_pattern = r'mw-diff-bytes"[^>]+>([^<]+)<'
-user_pattern = r'mw-userlink[^>]+><bdi>([^<]+)<'
-comments_pattern = r'"comment">(.*)<span class="mw-tag-markers'
-tags_pattern = r'mw-tag-markers"[^<]*<(.*)</span>'
-tags_in_pattern = r'>([^<]+)</a>'
-
-def heb_month(heb_month):
-    months = {
-        'ינואר': 1, 'פברואר': 2, 'מרץ': 3, 'אפריל': 4, 'מאי': 5, 'יוני': 6,
-        'יולי': 7, 'אוגוסט': 8, 'ספטמבר': 9, 'אוקטובר': 10, 'נובמבר': 11, 'דצמבר': 12
+function formatDisplay(d) {
+  try {
+    const date = new Date(d);
+    return date.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' })
+      .replace(/(\d{2})\.(\d{2})\.(\d{2})/, '$1/$2/$3');
+  } catch {
+    return d;
+  }
+}
+function parseDisplayDate(dateStr, granularity = 'daily') {
+  try {
+    if (granularity === 'monthly') {
+      const [m, y] = dateStr.split('/');
+      return new Date(`20${y}-${m}-01`);
+    } else {
+      const [d, m, y] = dateStr.split('/');
+      return new Date(`20${y}-${m}-${d}`);
     }
-    for key, value in months.items():
-        if key in heb_month:
-            return value
-    raise Exception('not a hebrew month: ' + heb_month)
+  } catch {
+    return new Date();
+  }
+}
+function generateMonthlyDates(startDate, endDate) {
+  const out = [];
+  let current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  const end = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+  while (current <= end) {
+    const month = String(current.getMonth() + 1).padStart(2, '0');
+    const year = String(current.getFullYear()).slice(2);
+    out.push(`${month}/${year}`);
+    current.setMonth(current.getMonth() + 1);
+  }
+  return out.sort((a, b) => parseDisplayDate(a, 'monthly') - parseDisplayDate(b, 'monthly'));
+}
 
-def heb_date_to_date(heb_date):
-    try:
-        splitted = heb_date.split(' ')
-        day = int(splitted[0])
-        month = heb_month(splitted[1])
-        year = int(splitted[2])
-        return datetime.datetime(year, month, day)
-    except:
-        return None
+/* URL State */
+function saveStateToURL() {
+  const p = new URLSearchParams(location.search);
+  p.set('p1', document.getElementById('pageTitle1').value.trim());
+  p.set('p2', document.getElementById('pageTitle2').value.trim());
+  p.set('g', document.getElementById('granularitySelect').value);
+  p.set('r', document.getElementById('rangeSelect').value);
+  history.replaceState(null, '', `${location.pathname}?${p.toString()}`);
+}
+function loadStateFromURL() {
+  const p = new URLSearchParams(location.search);
+  const get = k => p.get(k) || '';
+  if (get('p1')) document.getElementById('pageTitle1').value = decodeURIComponent(get('p1'));
+  if (get('p2')) document.getElementById('pageTitle2').value = decodeURIComponent(get('p2'));
+  if (get('g')) document.getElementById('granularitySelect').value = get('g');
+  if (get('r')) document.getElementById('rangeSelect').value = get('r');
+}
 
-def remove_html_tags(text):
-    html_pattern = re.compile(r'<.*?>')
-    clean_text = re.sub(html_pattern, '', text)
-    return clean_text
+/* Cache (sessionStorage, TTL 10m) */
+const CACHE_TTL_MS = 10 * 60 * 1000;
+function cacheGet(key) {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const { ts, data } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL_MS) {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+    return data;
+  } catch { return null; }
+}
+function cacheSet(key, data) {
+  try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
+}
 
-@app.route('/')
-def index():
-    results = []
-    now = str(datetime.datetime.now())
+/* **********************************************************************
+   *                             API LAYER
+   ********************************************************************** */
+async function fetchViewsData(title, startStr, endStr) {
+  const key = `views:${title}:${startStr}:${endStr}`;
+  const c = cacheGet(key); if (c) return c;
 
-    for target in targets:
-        url = f'https://he.wikipedia.org/wiki/מיוחד:שינויים_בדפים_המקושרים?hidebots=1&hidecategorization=1&hideWikibase=1&target={target}&limit=1000&days=30'
-        try:
-            resp = requests.get(url, headers=headers)
-            resp.raise_for_status()
-            html = resp.text.replace('\n', '')
-            ils = html.split('<li ')
-            date_str = ''
-            date = None
+  try {
+    const t = encodeURIComponent(title);
+    const url = `https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/he.wikipedia.org/all-access/user/${t}/daily/${startStr}/${endStr}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
 
-            for il in ils:
-                if '<h4>' in il:
-                    date_match = re.search(date_pattern, il)
-                    if date_match:
-                        date_str = date_match[1]
-                        date = heb_date_to_date(date_str)
-                line = il.split('</li>')[0]
-                if 'mw-changeslist-line' in line:
-                    title = ''
-                    title_match = re.search(title_pattern, line)
-                    if title_match:
-                        title = title_match[1]
-                    
-                    date_with_time = None
-                    time_match = re.search(time_pattern, line)
-                    if time_match and date:
-                        time_found = time_match[1].split(':')
-                        try:
-                            date_with_time = datetime.datetime(
-                                date.year, date.month, date.day, 
-                                int(time_found[0]), int(time_found[1])
-                            )
-                        except:
-                            date_with_time = None
+    const dates = (data.items || []).map(i =>
+      formatDisplay(`${i.timestamp.slice(0,4)}-${i.timestamp.slice(4,6)}-${i.timestamp.slice(6,8)}`)
+    );
+    const views = (data.items || []).map(i => i.views || 0);
+    const result = { dates, views };
+    cacheSet(key, result);
+    return result;
+  } catch (e) {
+    console.error('fetchViewsData error:', e);
+    return { dates: [], views: [], error: `לא ניתן לטעון נתוני צפיות עבור "${title}"` };
+  }
+}
 
-                    diff = ''
-                    diff_match = re.search(diff_pattern, line)
-                    if diff_match:
-                        diff = diff_match[1]
+async function fetchEditsData(title, startDate, endDate, granularity, displayDates) {
+  const key = `edits:${title}:${startDate.toISOString().slice(0,10)}:${endDate.toISOString().slice(0,10)}:${granularity}`;
+  const c = cacheGet(key); if (c) return c;
 
-                    user = ''
-                    user_match = re.search(user_pattern, line)
-                    if user_match:
-                        user = user_match[1]
+  try {
+    const t = encodeURIComponent(title);
+    const editMap = {};
+    let cont = null, done = false;
 
-                    comments = ''
-                    comments_match = re.search(comments_pattern, line)
-                    if comments_match:
-                        comments = remove_html_tags(comments_match[1])
+    while (!done) {
+      let url =
+        `https://he.wikipedia.org/w/api.php?action=query&format=json&prop=revisions&titles=${t}` +
+        `&rvlimit=500&rvstart=${endDate.toISOString()}&rvend=${startDate.toISOString()}` +
+        `&rvprop=timestamp&origin=*`;
+      if (cont) url += `&rvcontinue=${cont}`;
 
-                    tags = ''
-                    tags_match = re.search(tags_pattern, line)
-                    if tags_match:
-                        tags = tags_match[1]
-                        tags_in_match = re.findall(tags_in_pattern, tags)
-                        tags = ','.join(tags_in_match)
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
 
-                    results.append({
-                        'target': target,
-                        'date_with_time': date_with_time,
-                        'title': title,
-                        'diff': diff,
-                        'user': user,
-                        'comments': comments,
-                        'tags': tags,
-                        'run_date': now
-                    })
-        except requests.RequestException as e:
-            print(f"Error fetching {target}: {e}")
-            continue
+      const page = Object.values(json.query.pages || {})[0] || {};
+      const revs = page.revisions || [];
+      for (const r of revs) {
+        if (granularity === 'monthly') {
+          const d = new Date(r.timestamp);
+          const keyM = `${String(d.getMonth() + 1).padStart(2,'0')}/${String(d.getFullYear()).slice(2)}`;
+          editMap[keyM] = (editMap[keyM] || 0) + 1;
+        } else {
+          const day = formatDisplay(r.timestamp);
+          editMap[day] = (editMap[day] || 0) + 1;
+        }
+      }
 
-    df = pd.DataFrame(results)
-    # Convert DataFrame to list of dicts for template rendering
-    data = df.to_dict(orient='records')
-    return render_template('index.html', data=data)
+      if (json.continue && json.continue.rvcontinue) cont = json.continue.rvcontinue;
+      else done = true;
+    }
 
-if __name__ == '__main__':
-    app.run(debug=True)
+    const arr = displayDates.map(d => editMap[d] || 0);
+    cacheSet(key, arr);
+    return arr;
+  } catch (e) {
+    console.error('fetchEditsData error:', e);
+    const zeros = Array(displayDates.length).fill(0);
+    cacheSet(key, zeros);
+    return zeros;
+  }
+}
+
+async function fetchPageInfo(title) {
+  const key = `pageinfo:${title}`;
+  const c = cacheGet(key); if (c) return c;
+
+  try {
+    const t = encodeURIComponent(title);
+    const firstRes = await fetch(`https://he.wikipedia.org/w/api.php?action=query&format=json&prop=revisions&titles=${t}&rvlimit=1&rvdir=newer&rvprop=timestamp|user&origin=*`);
+    if (!firstRes.ok) throw new Error(`HTTP ${firstRes.status}`);
+    const first = await firstRes.json();
+    const pageA = Object.values(first.query.pages || {})[0];
+    if (!pageA || pageA.missing) {
+      const miss = { missing: true };
+      cacheSet(key, miss);
+      return miss;
+    }
+    const created = pageA.revisions?.[0];
+
+    const lastRes = await fetch(`https://he.wikipedia.org/w/api.php?action=query&format=json&prop=revisions&titles=${t}&rvlimit=1&rvprop=timestamp|user&origin=*`);
+    if (!lastRes.ok) throw new Error(`HTTP ${lastRes.status}`);
+    const last = await lastRes.json();
+    const lastEdit = Object.values(last.query.pages || {})[0]?.revisions?.[0];
+
+    const out = { created, lastEdit, missing: false };
+    cacheSet(key, out);
+    return out;
+  } catch (e) {
+    console.error('fetchPageInfo error:', e);
+    return { missing: true, error: `לא ניתן לטעון מידע עבור "${title}"` };
+  }
+}
+
+async function fetchRecentEdits(title) {
+  const key = `recent:${title}`;
+  const c = cacheGet(key); if (c) return c;
+
+  try {
+    const t = encodeURIComponent(title);
+    const res = await fetch(`https://he.wikipedia.org/w/api.php?action=query&format=json&prop=revisions&titles=${t}&rvlimit=4&rvprop=timestamp|user|comment|ids&rvdir=older&origin=*`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const revs = Object.values(json.query.pages || {})[0]?.revisions || [];
+    cacheSet(key, revs);
+    return revs;
+  } catch (e) {
+    console.error('fetchRecentEdits error:', e);
+    return [];
+  }
+}
+
+/* **********************************************************************
+   *                             RENDERERS
+   ********************************************************************** */
+function renderWikiLinks(articles) {
+  const el = document.getElementById('wikiLinks');
+  el.innerHTML = articles.map(a => {
+    const encoded = encodeURIComponent(a.title);
+    return `<a href="https://he.wikipedia.org/wiki/${encoded}" target="_blank" class="mr-4 underline">לצפייה בערך "${a.title}" בוויקיפדיה »</a>`;
+  }).join('');
+}
+
+function renderSummaries(articles, displayDates, infos) {
+  const container = document.getElementById('summaryContent');
+  let html = '';
+  for (let i = 0; i < articles.length; i++) {
+    const idx = articles[i].index;
+    const info = infos[i];
+    const a = state.articles[idx];
+
+    const lastEdit = info.lastEdit;
+    let warning = '';
+    if (lastEdit) {
+      const editTime = new Date(lastEdit.timestamp);
+      const now = new Date();
+      const mins = Math.floor((now - editTime) / 60000);
+      const hours = Math.floor(mins / 60), m = mins % 60;
+      if (hours < 5) {
+        const txt = hours > 0 ? `${hours} שעות ו-${m} דקות` : `${m} דקות`;
+        warning = ` <span class="text-red-600">(העריכה האחרונה הייתה לפני ${txt})</span>`;
+      }
+    }
+
+    const viewsAll = a.views.filter(v => v != null);
+    const totalViews = viewsAll.reduce((s, v) => s + (v || 0), 0);
+    const maxViews = viewsAll.length ? Math.max(...viewsAll) : 0;
+    const maxViewsDate = (() => {
+      if (!viewsAll.length) return 'N/A';
+      const flat = a.views.map(v => v ?? 0);
+      const idxMax = flat.indexOf(maxViews);
+      return a.dates[idxMax] || 'N/A';
+    })();
+
+    const maxEdits = a.edits.length ? Math.max(...a.edits) : 0;
+    const maxEditsDate = a.edits.length ? displayDates[a.edits.indexOf(maxEdits)] : 'N/A';
+
+    html += `
+      <div class="mb-4">
+        <b>ערך: ${a.title}</b><br>
+        <b>טווח:</b> ${displayDates[displayDates.length - 1] || 'N/A'} - ${displayDates[0] || 'N/A'}<br>
+        <b>נוצר על ידי:</b> ${info.created?.user || 'לא זמין'} בתאריך ${info.created ? formatDisplay(info.created.timestamp) : 'N/A'}<br>
+        <b>העריכה האחרונה:</b> ${lastEdit?.user || 'לא זמין'} בתאריך ${lastEdit ? formatDisplay(lastEdit.timestamp) : 'N/A'} ${warning}<br>
+        <b>סה"כ צפיות:</b> ${totalViews.toLocaleString()}<br>
+        <b>סה"כ עריכות:</b> ${a.edits.reduce((x, y) => x + y, 0).toLocaleString()}<br>
+        <b>יום שיא הצפיות:</b> ${maxViewsDate} (${maxViews.toLocaleString()} צפיות)<br>
+        <b>יום שיא העריכות:</b> ${maxEditsDate} (${maxEdits.toLocaleString()} עריכות)
+      </div>
+    `;
+  }
+  container.innerHTML = html;
+  show(document.getElementById('pageInfo'));
+}
+
+function renderKPIFromFirst(articles, infos) {
+  const first = state.articles[articles[0].index];
+  const info = infos[0];
+
+  if (!first || !first.dates.length) return;
+
+  const viewsArr = first.views.filter(v => v != null);
+  const total = viewsArr.reduce((a, b) => a + (b || 0), 0);
+  const days = viewsArr.length || 1;
+
+  document.getElementById('kpiViewsTotal').textContent = total.toLocaleString();
+  document.getElementById('kpiViewsAvg').textContent = Math.round(total / days).toLocaleString();
+
+  let ago = 'לא זמין';
+  if (info && info.lastEdit?.timestamp) {
+    const diff = Date.now() - new Date(info.lastEdit.timestamp).getTime();
+    const hrs = Math.floor(diff / 3600000);
+    ago = hrs < 48 ? `${hrs} שעות` : `${Math.floor(hrs/24)} ימים`;
+  }
+  document.getElementById('kpiLastEditAgo').textContent = ago;
+
+  show(document.getElementById('kpiBar'));
+}
+
+function renderRecentEdits(articles, recentsList) {
+  const box = document.getElementById('recentEdits');
+  let html = '';
+  for (let i = 0; i < articles.length; i++) {
+    const title = articles[i].title;
+    const recents = recentsList[i] || [];
+    if (recents.length > 1) {
+      html += `<h3 class="text-lg font-semibold mt-3">עריכות אחרונות - ${title}:</h3><ul class="list-disc pr-6 mt-2">`;
+      recents.slice(1).forEach(rev => {
+        const date = formatDisplay(rev.timestamp);
+        const time = new Date(rev.timestamp).toLocaleTimeString('he-IL');
+        const user = rev.user;
+        const comment = rev.comment || '(ללא תקציר)';
+        const link = `https://he.wikipedia.org/w/index.php?diff=cur&oldid=${rev.revid}`;
+        html += `<li><b>${date} ${time}</b> — <b>${user}</b>: ${comment} [<a href="${link}" target="_blank" class="text-blue-600 underline">השוואה לגרסה הנוכחית</a>]</li>`;
+      });
+      html += `</ul>`;
+    }
+  }
+  box.innerHTML = html;
+}
+
+function renderCharts(articles, displayDates, granularity) {
+  // Views
+  if (viewsChart) viewsChart.destroy();
+  show(document.getElementById('viewsSummary'));
+  const labels = displayDates.slice();
+  viewsChart = new Chart(document.getElementById('viewsChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: articles.map((a, i) => ({
+        label: `צפיות - ${a.title}`,
+        data: state.articles[a.index].views,
+        borderColor: i === 0 ? 'blue' : 'green',
+        fill: false,
+        spanGaps: true
+      }))
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true },
+        x: {
+          ticks: {
+            callback: (v, idx) => granularity === 'monthly'
+              ? labels[idx].replace('/', '/20')
+              : labels[idx]
+          }
+        }
+      },
+      plugins: {
+        datalabels: { display: false },
+        legend: { display: articles.length > 1 }
+      }
+    },
+    plugins: [ChartDataLabels]
+  });
+
+  // Edits
+  if (editsChart) editsChart.destroy();
+  show(document.getElementById('editsSummary'));
+  editsChart = new Chart(document.getElementById('editsChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: articles.map((a, i) => ({
+        label: `עריכות - ${a.title}`,
+        data: state.articles[a.index].edits,
+        backgroundColor: i === 0 ? 'orange' : 'purple'
+      }))
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true },
+        x: {
+          ticks: {
+            callback: (v, idx) => granularity === 'monthly'
+              ? labels[idx].replace('/', '/20')
+              : labels[idx]
+          }
+        }
+      },
+      plugins: {
+        legend: { display: articles.length > 1 }
+      }
+    }
+  });
+}
+
+/* **********************************************************************
+   *                           CONTROLLER
+   ********************************************************************** */
+async function loadData() {
+  const loading = document.getElementById('loadingIndicator');
+  const errorDiv = document.getElementById('errorMessage');
+
+  try {
+    show(loading);
+    hide(errorDiv);
+    errorDiv.textContent = '';
+
+    const t1 = document.getElementById('pageTitle1').value.trim();
+    const t2 = document.getElementById('pageTitle2').value.trim();
+    if (!t1 && !t2) {
+      errorDiv.textContent = 'נא להזין לפחות שם ערך אחד';
+      show(errorDiv); hide(loading); return;
+    }
+
+    saveStateToURL();
+
+    const range = document.getElementById('rangeSelect').value;
+    const granularity = document.getElementById('granularitySelect').value;
+    const endDate = new Date(); endDate.setDate(endDate.getDate() - 1); // הימנעות מיום חלקי
+    const defaultStart = new Date('2015-07-01'); // תחילת ה־Pageviews API
+
+    const articles = [{ title: t1, index: 0 }, { title: t2, index: 1 }].filter(a => a.title);
+
+    // Page info לכולם במקביל
+    const infos = await Promise.all(articles.map(a => fetchPageInfo(a.title)));
+    // אתחול state ותחילת טווח כולל
+    let earliestStart = defaultStart;
+    articles.forEach((a, i) => {
+      const info = infos[i];
+      if (info.missing) return;
+      state.articles[a.index] = {
+        title: a.title,
+        dates: [],
+        views: [],
+        edits: [],
+        createdDate: info.created ? new Date(info.created.timestamp) : defaultStart
+      };
+      if (range === 'all' && state.articles[a.index].createdDate > earliestStart) {
+        earliestStart = new Date(state.articles[a.index].createdDate);
+      }
+    });
+
+    let startDate = range === 'all' ? earliestStart : new Date(endDate);
+    if (range !== 'all') startDate.setDate(endDate.getDate() - parseInt(range, 10));
+
+    // הגבלת monthly ל־10 שנים
+    if (granularity === 'monthly') {
+      const months = (endDate.getFullYear() - startDate.getFullYear()) * 12 + (endDate.getMonth() - startDate.getMonth());
+      if (months > 120) {
+        errorDiv.textContent = 'טווח התאריכים גדול מדי עבור תצוגה חודשית';
+        show(errorDiv); hide(loading); return;
+      }
+    }
+
+    const toAPI = d => d.toISOString().slice(0,10).replace(/-/g,'');
+    const startStr = toAPI(startDate), endStr = toAPI(endDate);
+
+    // קישורי ערכים
+    renderWikiLinks(articles);
+
+    // בניית רשימת תאריכים מאוחדת
+    let dateSet = new Set();
+    if (granularity === 'monthly') {
+      dateSet = new Set(generateMonthlyDates(startDate, endDate));
+    } else {
+      const viewsAll = await Promise.all(articles.map(a => fetchViewsData(a.title, startStr, endStr)));
+      viewsAll.forEach((vd, i) => {
+        if (vd.error) return;
+        vd.dates.forEach(date => {
+          if (parseDisplayDate(date, 'daily') >= state.articles[articles[i].index].createdDate) {
+            dateSet.add(date);
+          }
+        });
+      });
+    }
+    const displayDates = Array.from(dateSet).sort((a, b) => parseDisplayDate(a, granularity) - parseDisplayDate(b, granularity));
+
+    // הבאת נתונים לכל ערך במקביל
+    const perArticlePromises = articles.map(async (a) => {
+      const [viewsData, recents] = await Promise.all([
+        fetchViewsData(a.title, startStr, endStr),
+        fetchRecentEdits(a.title)
+      ]);
+
+      // מיפוי צפיות
+      let mappedViews = [];
+      if (granularity === 'monthly') {
+        const monthlyMap = new Map();
+        viewsData.dates.forEach((date, i) => {
+          const d = parseDisplayDate(date, 'daily');
+          if (d >= state.articles[a.index].createdDate) {
+            const key = `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getFullYear()).slice(2)}`;
+            monthlyMap.set(key, (monthlyMap.get(key)||0) + (viewsData.views[i]||0));
+          }
+        });
+        mappedViews = displayDates.map(key => monthlyMap.get(key) ?? null);
+      } else {
+        const vmap = new Map(viewsData.dates.map((d, i) => [d, viewsData.views[i]]));
+        mappedViews = displayDates.map(d =>
+          vmap.has(d) && parseDisplayDate(d, 'daily') >= state.articles[a.index].createdDate
+            ? vmap.get(d) : null
+        );
+      }
+
+      state.articles[a.index].views = mappedViews;
+      state.articles[a.index].dates = displayDates;
+
+      // עריכות
+      const editsArr = await fetchEditsData(a.title, startDate, endDate, granularity, displayDates);
+      state.articles[a.index].edits = editsArr;
+
+      return { recents };
+    });
+
+    const perArticleResults = await Promise.all(perArticlePromises);
+    const recentsList = perArticleResults.map(r => r.recents);
+
+    if (!articles.length || !displayDates.length) {
+      errorDiv.textContent = 'לא נמצאו נתונים להצגה';
+      show(errorDiv); hide(loading); return;
+    }
+
+    // תצוגות
+    renderSummaries(articles, displayDates, infos);
+    renderKPIFromFirst(articles, infos);
+    renderCharts(articles, displayDates, document.getElementById('granularitySelect').value);
+    renderRecentEdits(articles, recentsList);
+
+    hide(loading);
+    toast('הנתונים נטענו');
+  } catch (e) {
+    console.error('loadData error:', e);
+    const errorDiv = document.getElementById('errorMessage');
+    errorDiv.textContent = `אירעה שגיאה בטעינת הנתונים: ${e.message || e}. נא לנסות שוב.`;
+    show(errorDiv);
+    hide(document.getElementById('loadingIndicator'));
+  }
+}
+
+/* **********************************************************************
+   *                         CSV EXPORTER
+   ********************************************************************** */
+function downloadCSV() {
+  try {
+    const articles = state.articles.filter(a => a.title);
+    if (!articles.length) {
+      const e = document.getElementById('errorMessage');
+      e.textContent = 'אין נתונים להורדה';
+      show(e);
+      return;
+    }
+    let csv = '\uFEFFתאריך';
+    articles.forEach(a => { csv += `,צפיות - ${a.title},עריכות - ${a.title}`; });
+    csv += '\n';
+
+    const maxLen = Math.max(...articles.map(a => a.dates.length));
+    for (let i = 0; i < maxLen; i++) {
+      const date = articles[0].dates[i] || '';
+      let row = `${date}`;
+      articles.forEach(a => {
+        row += `,${a.views[i] !== null ? (a.views[i] || 0) : ''},${a.edits[i] || 0}`;
+      });
+      csv += row + '\n';
+    }
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `wiki_stats_${articles.map(a => a.title).join('_vs_')}.csv`;
+    link.click();
+  } catch (e) {
+    console.error('downloadCSV error:', e);
+    const err = document.getElementById('errorMessage');
+    err.textContent = 'אירעה שגיאה בהורדת הקובץ';
+    show(err);
+  }
+}
+
+/* **********************************************************************
+   *                              INIT
+   ********************************************************************** */
+document.addEventListener('DOMContentLoaded', () => {
+  loadStateFromURL();
+
+  // Enter להפעלה מהירה
+  const runOnEnter = ev => { if (ev.key === 'Enter') loadData(); };
+  document.getElementById('pageTitle1').addEventListener('keydown', runOnEnter);
+  document.getElementById('pageTitle2').addEventListener('keydown', runOnEnter);
+
+  document.getElementById('loadDataButton').addEventListener('click', loadData);
+  document.getElementById('downloadCSVButton').addEventListener('click', downloadCSV);
+});
+</script>
+</body>
+</html>
