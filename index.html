@@ -1,36 +1,26 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
-  <!-- ====== Meta & Libs ====== -->
   <meta charset="UTF-8" />
-  <title>סטטיסטיקת ערך ויקיפדיה • חדשה</title>
+  <title>סטטיסטיקת ערך ויקיפדיה • מתוקן</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-  <style>
-    /* כיתוב גרפים קטן ונקי */
-    canvas { background: #fff; }
-  </style>
 </head>
-
 <body class="bg-gray-100 text-gray-900 font-sans">
-<!-- ============================== APP ============================== -->
 <main class="max-w-5xl mx-auto p-4">
-  <!-- ========= Header ========= -->
   <header class="mb-4">
     <h1 class="text-2xl font-bold">סטטיסטיקת ערך ויקיפדיה</h1>
-    <p class="text-sm text-gray-600">חקירת צפיות ועריכות ‐ ערך יחיד או השוואה בין שני ערכים.</p>
+    <p class="text-sm text-gray-600">חקירת צפיות ועריכות ‐ ערך יחיד או השוואה.</p>
   </header>
 
-  <!-- ========= Controls ========= -->
-  <section aria-label="בקרות" class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+  <!-- Controls -->
+  <section class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
     <div class="flex flex-wrap gap-3 items-center">
-      <input id="pageTitle1" type="text" autocomplete="off"
-             placeholder="שם ערך ראשון"
+      <input id="pageTitle1" type="text" autocomplete="off" placeholder="שם ערך ראשון"
              class="p-2 border border-gray-300 rounded w-full sm:w-auto flex-1 min-w-[160px]">
-      <input id="pageTitle2" type="text" autocomplete="off"
-             placeholder="שם ערך שני (לא חובה)"
+      <input id="pageTitle2" type="text" autocomplete="off" placeholder="שם ערך שני (לא חובה)"
              class="p-2 border border-gray-300 rounded w-full sm:w-auto flex-1 min-w-[160px]">
       <select id="granularitySelect" class="p-2 border border-gray-300 rounded">
         <option value="daily" selected>רמת פירוט יומית</option>
@@ -44,20 +34,12 @@
         <option value="365">365 ימים אחרונים</option>
         <option value="all">מאז ומעולם</option>
       </select>
-
       <div class="ms-auto flex gap-2">
-        <button id="loadDataButton"
-                class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
-          הצג נתונים
-        </button>
-        <button id="downloadCSVButton"
-                class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition">
-          הורד CSV
-        </button>
+        <button id="loadDataButton" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">הצג נתונים</button>
+        <button id="downloadCSVButton" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition">הורד CSV</button>
       </div>
     </div>
 
-    <!-- עזרי נגישות/פידבק -->
     <div id="loadingIndicator" class="hidden flex items-center gap-2 mt-3" aria-live="polite">
       <div class="animate-spin rounded-full h-6 w-6 border-t-4 border-blue-600"></div>
       <span class="text-sm">טוען נתונים...</span>
@@ -65,32 +47,16 @@
     <div id="errorMessage" class="mt-2 text-red-600 font-bold hidden" role="alert"></div>
   </section>
 
-  <!-- ========= KPI Bar ========= -->
-  <section id="kpiBar" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 hidden">
-    <div class="bg-white p-4 rounded shadow-sm border border-gray-200">
-      <div class="text-gray-500 text-sm">סה״כ צפיות</div>
-      <div id="kpiViewsTotal" class="text-2xl font-bold">־</div>
-    </div>
-    <div class="bg-white p-4 rounded shadow-sm border border-gray-200">
-      <div class="text-gray-500 text-sm">ממוצע ליום</div>
-      <div id="kpiViewsAvg" class="text-2xl font-bold">־</div>
-    </div>
-    <div class="bg-white p-4 rounded shadow-sm border border-gray-200">
-      <div class="text-gray-500 text-sm">זמן מאז עריכה אחרונה</div>
-      <div id="kpiLastEditAgo" class="text-2xl font-bold">־</div>
-    </div>
-  </section>
+  <!-- KPI: כרטיסים נפרדים לכל ערך -->
+  <section id="kpiContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 hidden"></section>
 
-  <!-- ========= Links ========= -->
   <div id="wikiLinks" class="mt-3 text-blue-700 font-bold"></div>
 
-  <!-- ========= Page Summaries ========= -->
   <section id="pageInfo" class="mt-3 text-right text-base leading-7 bg-white p-4 rounded shadow-sm border border-gray-200 hidden">
     <span class="block font-bold text-lg mb-1">סטטיסטיקת ערכים</span>
     <div id="summaryContent"></div>
   </section>
 
-  <!-- ========= Charts ========= -->
   <section class="mt-4">
     <h2 id="viewsSummary" class="font-bold text-lg hidden">צפיות לאורך זמן</h2>
     <div class="w-full overflow-x-auto">
@@ -105,20 +71,12 @@
     </div>
   </section>
 
-  <!-- ========= Recent Edits ========= -->
   <section id="recentEdits" class="mt-8"></section>
 </main>
 
-<!-- ========= Toast ========= -->
-<div id="toast" class="hidden fixed top-4 left-1/2 -translate-x-1/2 bg-black text-white px-4 py-2 rounded shadow z-50">
-  הפעולה הושלמה
-</div>
+<div id="toast" class="hidden fixed top-4 left-1/2 -translate-x-1/2 bg-black text-white px-4 py-2 rounded shadow z-50">הנתונים נטענו</div>
 
-<!-- ============================== SCRIPTS ============================== -->
 <script>
-/* **********************************************************************
-   *                              STATE
-   ********************************************************************** */
 let viewsChart, editsChart;
 const state = {
   articles: [
@@ -127,588 +85,298 @@ const state = {
   ]
 };
 
-/* **********************************************************************
-   *                           UTILITIES
-   ********************************************************************** */
-function show(el) { el.classList.remove('hidden'); }
-function hide(el) { el.classList.add('hidden'); }
-function toast(msg = 'הנתונים נטענו') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  show(t);
-  setTimeout(() => hide(t), 1800);
+/* ---------- Utils ---------- */
+function show(e){e.classList.remove('hidden')} function hide(e){e.classList.add('hidden')}
+function toast(msg='הנתונים נטענו'){const t=document.getElementById('toast');t.textContent=msg;show(t);setTimeout(()=>hide(t),1800)}
+function formatDisplay(d){try{const date=new Date(d);return date.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'2-digit'}).replace(/(\d{2})\.(\d{2})\.(\d{2})/,'$1/$2/$3')}catch{return d}}
+function parseDisplayDate(s,g='daily'){try{if(g==='monthly'){const[m,y]=s.split('/');return new Date(`20${y}-${m}-01`)}else{const[d,m,y]=s.split('/');return new Date(`20${y}-${m}-${d}`)}}catch{return new Date()}}
+function generateMonthlyDates(startDate,endDate){const out=[];let c=new Date(startDate.getFullYear(),startDate.getMonth(),1);const end=new Date(endDate.getFullYear(),endDate.getMonth(),1);while(c<=end){const m=String(c.getMonth()+1).padStart(2,'0');const y=String(c.getFullYear()).slice(2);out.push(`${m}/${y}`);c.setMonth(c.getMonth()+1)}return out.sort((a,b)=>parseDisplayDate(a,'monthly')-parseDisplayDate(b,'monthly'))}
+
+/* ---------- URL state with safe fallback ---------- */
+function isSafeToReplaceState(){try{const p=location.protocol;const http=p==='http:'||p==='https:';const isTop=window.self===window.top;const notAbout=!location.href.startsWith('about:');return http&&isTop&&notAbout}catch{return false}}
+function saveStateToURL(){
+  try{
+    const p=new URLSearchParams();
+    p.set('p1',document.getElementById('pageTitle1').value.trim());
+    p.set('p2',document.getElementById('pageTitle2').value.trim());
+    p.set('g',document.getElementById('granularitySelect').value);
+    p.set('r',document.getElementById('rangeSelect').value);
+    const qs=p.toString();
+    if(isSafeToReplaceState()) history.replaceState(null,'',`${location.pathname}?${qs}`);
+    else location.hash=`state=${encodeURIComponent(qs)}`;
+  }catch{}
+}
+function loadStateFromURL(){
+  try{
+    let search='';
+    if(isSafeToReplaceState()) search=location.search;
+    else if(location.hash.startsWith('#state=')) search='?'+decodeURIComponent(location.hash.slice('#state='.length));
+    const params=new URLSearchParams(search);
+    const p1=params.get('p1'),p2=params.get('p2'),g=params.get('g'),r=params.get('r');
+    if(p1) document.getElementById('pageTitle1').value=p1;
+    if(p2) document.getElementById('pageTitle2').value=p2;
+    if(g) document.getElementById('granularitySelect').value=g;
+    if(r) document.getElementById('rangeSelect').value=r;
+  }catch{}
 }
 
-function formatDisplay(d) {
-  try {
-    const date = new Date(d);
-    return date.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' })
-      .replace(/(\d{2})\.(\d{2})\.(\d{2})/, '$1/$2/$3');
-  } catch {
-    return d;
-  }
+/* ---------- Cache (sessionStorage, 10m) ---------- */
+const CACHE_TTL_MS=10*60*1000;
+function cacheGet(k){try{const raw=sessionStorage.getItem(k);if(!raw) return null;const {ts,data}=JSON.parse(raw);if(Date.now()-ts>CACHE_TTL_MS){sessionStorage.removeItem(k);return null}return data}catch{return null}}
+function cacheSet(k,d){try{sessionStorage.setItem(k,JSON.stringify({ts:Date.now(),data:d}))}catch{}}
+
+/* ---------- API ---------- */
+async function fetchViewsData(title,startStr,endStr){
+  const key=`views:${title}:${startStr}:${endStr}`;const c=cacheGet(key);if(c) return c;
+  try{
+    const t=encodeURIComponent(title);
+    const url=`https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/he.wikipedia.org/all-access/user/${t}/daily/${startStr}/${endStr}`;
+    const res=await fetch(url); if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data=await res.json();
+    const dates=(data.items||[]).map(i=>formatDisplay(`${i.timestamp.slice(0,4)}-${i.timestamp.slice(4,6)}-${i.timestamp.slice(6,8)}`));
+    const views=(data.items||[]).map(i=>i.views||0);
+    const out={dates,views}; cacheSet(key,out); return out;
+  }catch(e){console.error('views',e);return {dates:[],views:[],error:`לא ניתן לטעון נתוני צפיות עבור "${title}"`}}
 }
-function parseDisplayDate(dateStr, granularity = 'daily') {
-  try {
-    if (granularity === 'monthly') {
-      const [m, y] = dateStr.split('/');
-      return new Date(`20${y}-${m}-01`);
-    } else {
-      const [d, m, y] = dateStr.split('/');
-      return new Date(`20${y}-${m}-${d}`);
-    }
-  } catch {
-    return new Date();
-  }
-}
-function generateMonthlyDates(startDate, endDate) {
-  const out = [];
-  let current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-  const end = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
-  while (current <= end) {
-    const month = String(current.getMonth() + 1).padStart(2, '0');
-    const year = String(current.getFullYear()).slice(2);
-    out.push(`${month}/${year}`);
-    current.setMonth(current.getMonth() + 1);
-  }
-  return out.sort((a, b) => parseDisplayDate(a, 'monthly') - parseDisplayDate(b, 'monthly'));
-}
-
-/* URL State */
-function saveStateToURL() {
-  const p = new URLSearchParams(location.search);
-  p.set('p1', document.getElementById('pageTitle1').value.trim());
-  p.set('p2', document.getElementById('pageTitle2').value.trim());
-  p.set('g', document.getElementById('granularitySelect').value);
-  p.set('r', document.getElementById('rangeSelect').value);
-  history.replaceState(null, '', `${location.pathname}?${p.toString()}`);
-}
-function loadStateFromURL() {
-  const p = new URLSearchParams(location.search);
-  const get = k => p.get(k) || '';
-  if (get('p1')) document.getElementById('pageTitle1').value = decodeURIComponent(get('p1'));
-  if (get('p2')) document.getElementById('pageTitle2').value = decodeURIComponent(get('p2'));
-  if (get('g')) document.getElementById('granularitySelect').value = get('g');
-  if (get('r')) document.getElementById('rangeSelect').value = get('r');
-}
-
-/* Cache (sessionStorage, TTL 10m) */
-const CACHE_TTL_MS = 10 * 60 * 1000;
-function cacheGet(key) {
-  try {
-    const raw = sessionStorage.getItem(key);
-    if (!raw) return null;
-    const { ts, data } = JSON.parse(raw);
-    if (Date.now() - ts > CACHE_TTL_MS) {
-      sessionStorage.removeItem(key);
-      return null;
-    }
-    return data;
-  } catch { return null; }
-}
-function cacheSet(key, data) {
-  try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
-}
-
-/* **********************************************************************
-   *                             API LAYER
-   ********************************************************************** */
-async function fetchViewsData(title, startStr, endStr) {
-  const key = `views:${title}:${startStr}:${endStr}`;
-  const c = cacheGet(key); if (c) return c;
-
-  try {
-    const t = encodeURIComponent(title);
-    const url = `https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/he.wikipedia.org/all-access/user/${t}/daily/${startStr}/${endStr}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-
-    const dates = (data.items || []).map(i =>
-      formatDisplay(`${i.timestamp.slice(0,4)}-${i.timestamp.slice(4,6)}-${i.timestamp.slice(6,8)}`)
-    );
-    const views = (data.items || []).map(i => i.views || 0);
-    const result = { dates, views };
-    cacheSet(key, result);
-    return result;
-  } catch (e) {
-    console.error('fetchViewsData error:', e);
-    return { dates: [], views: [], error: `לא ניתן לטעון נתוני צפיות עבור "${title}"` };
-  }
-}
-
-async function fetchEditsData(title, startDate, endDate, granularity, displayDates) {
-  const key = `edits:${title}:${startDate.toISOString().slice(0,10)}:${endDate.toISOString().slice(0,10)}:${granularity}`;
-  const c = cacheGet(key); if (c) return c;
-
-  try {
-    const t = encodeURIComponent(title);
-    const editMap = {};
-    let cont = null, done = false;
-
-    while (!done) {
-      let url =
-        `https://he.wikipedia.org/w/api.php?action=query&format=json&prop=revisions&titles=${t}` +
-        `&rvlimit=500&rvstart=${endDate.toISOString()}&rvend=${startDate.toISOString()}` +
-        `&rvprop=timestamp&origin=*`;
-      if (cont) url += `&rvcontinue=${cont}`;
-
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-
-      const page = Object.values(json.query.pages || {})[0] || {};
-      const revs = page.revisions || [];
-      for (const r of revs) {
-        if (granularity === 'monthly') {
-          const d = new Date(r.timestamp);
-          const keyM = `${String(d.getMonth() + 1).padStart(2,'0')}/${String(d.getFullYear()).slice(2)}`;
-          editMap[keyM] = (editMap[keyM] || 0) + 1;
-        } else {
-          const day = formatDisplay(r.timestamp);
-          editMap[day] = (editMap[day] || 0) + 1;
-        }
+async function fetchEditsData(title,startDate,endDate,granularity,displayDates){
+  const key=`edits:${title}:${startDate.toISOString().slice(0,10)}:${endDate.toISOString().slice(0,10)}:${granularity}`;
+  const c=cacheGet(key); if(c) return c;
+  try{
+    const t=encodeURIComponent(title); const map={}; let cont=null,done=false;
+    while(!done){
+      let url=`https://he.wikipedia.org/w/api.php?action=query&format=json&prop=revisions&titles=${t}&rvlimit=500&rvstart=${endDate.toISOString()}&rvend=${startDate.toISOString()}&rvprop=timestamp&origin=*`;
+      if(cont) url+=`&rvcontinue=${cont}`;
+      const res=await fetch(url); if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j=await res.json(); const page=Object.values(j.query.pages||{})[0]||{}; const revs=page.revisions||[];
+      for(const r of revs){
+        if(granularity==='monthly'){const d=new Date(r.timestamp);const key=`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getFullYear()).slice(2)}`;map[key]=(map[key]||0)+1;}
+        else{const day=formatDisplay(r.timestamp);map[day]=(map[day]||0)+1;}
       }
-
-      if (json.continue && json.continue.rvcontinue) cont = json.continue.rvcontinue;
-      else done = true;
+      if(j.continue && j.continue.rvcontinue) cont=j.continue.rvcontinue; else done=true;
     }
-
-    const arr = displayDates.map(d => editMap[d] || 0);
-    cacheSet(key, arr);
-    return arr;
-  } catch (e) {
-    console.error('fetchEditsData error:', e);
-    const zeros = Array(displayDates.length).fill(0);
-    cacheSet(key, zeros);
-    return zeros;
-  }
+    const arr=displayDates.map(d=>map[d]||0); cacheSet(key,arr); return arr;
+  }catch(e){console.error('edits',e);const z=Array(displayDates.length).fill(0);cacheSet(key,z);return z}
+}
+async function fetchPageInfo(title){
+  const key=`pageinfo:${title}`;const c=cacheGet(key);if(c) return c;
+  try{
+    const t=encodeURIComponent(title);
+    const first=await fetch(`https://he.wikipedia.org/w/api.php?action=query&format=json&prop=revisions&titles=${t}&rvlimit=1&rvdir=newer&rvprop=timestamp|user&origin=*`);
+    if(!first.ok) throw new Error(`HTTP ${first.status}`); const f=await first.json();
+    const pageA=Object.values(f.query.pages||{})[0]; if(!pageA||pageA.missing){const miss={missing:true};cacheSet(key,miss);return miss}
+    const created=pageA.revisions?.[0];
+    const last=await fetch(`https://he.wikipedia.org/w/api.php?action=query&format=json&prop=revisions&titles=${t}&rvlimit=1&rvprop=timestamp|user&origin=*`);
+    if(!last.ok) throw new Error(`HTTP ${last.status}`); const l=await last.json();
+    const lastEdit=Object.values(l.query.pages||{})[0]?.revisions?.[0];
+    const out={created,lastEdit,missing:false}; cacheSet(key,out); return out;
+  }catch(e){console.error('pageinfo',e);return {missing:true,error:`לא ניתן לטעון מידע עבור "${title}"`}}
+}
+async function fetchRecentEdits(title){
+  const key=`recent:${title}`;const c=cacheGet(key);if(c) return c;
+  try{
+    const t=encodeURIComponent(title);
+    const res=await fetch(`https://he.wikipedia.org/w/api.php?action=query&format=json&prop=revisions&titles=${t}&rvlimit=4&rvprop=timestamp|user|comment|ids&rvdir=older&origin=*`);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const j=await res.json(); const revs=Object.values(j.query.pages||{})[0]?.revisions||[];
+    cacheSet(key,revs); return revs;
+  }catch(e){console.error('recent',e);return []}
 }
 
-async function fetchPageInfo(title) {
-  const key = `pageinfo:${title}`;
-  const c = cacheGet(key); if (c) return c;
-
-  try {
-    const t = encodeURIComponent(title);
-    const firstRes = await fetch(`https://he.wikipedia.org/w/api.php?action=query&format=json&prop=revisions&titles=${t}&rvlimit=1&rvdir=newer&rvprop=timestamp|user&origin=*`);
-    if (!firstRes.ok) throw new Error(`HTTP ${firstRes.status}`);
-    const first = await firstRes.json();
-    const pageA = Object.values(first.query.pages || {})[0];
-    if (!pageA || pageA.missing) {
-      const miss = { missing: true };
-      cacheSet(key, miss);
-      return miss;
-    }
-    const created = pageA.revisions?.[0];
-
-    const lastRes = await fetch(`https://he.wikipedia.org/w/api.php?action=query&format=json&prop=revisions&titles=${t}&rvlimit=1&rvprop=timestamp|user&origin=*`);
-    if (!lastRes.ok) throw new Error(`HTTP ${lastRes.status}`);
-    const last = await lastRes.json();
-    const lastEdit = Object.values(last.query.pages || {})[0]?.revisions?.[0];
-
-    const out = { created, lastEdit, missing: false };
-    cacheSet(key, out);
-    return out;
-  } catch (e) {
-    console.error('fetchPageInfo error:', e);
-    return { missing: true, error: `לא ניתן לטעון מידע עבור "${title}"` };
-  }
-}
-
-async function fetchRecentEdits(title) {
-  const key = `recent:${title}`;
-  const c = cacheGet(key); if (c) return c;
-
-  try {
-    const t = encodeURIComponent(title);
-    const res = await fetch(`https://he.wikipedia.org/w/api.php?action=query&format=json&prop=revisions&titles=${t}&rvlimit=4&rvprop=timestamp|user|comment|ids&rvdir=older&origin=*`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    const revs = Object.values(json.query.pages || {})[0]?.revisions || [];
-    cacheSet(key, revs);
-    return revs;
-  } catch (e) {
-    console.error('fetchRecentEdits error:', e);
-    return [];
-  }
-}
-
-/* **********************************************************************
-   *                             RENDERERS
-   ********************************************************************** */
-function renderWikiLinks(articles) {
-  const el = document.getElementById('wikiLinks');
-  el.innerHTML = articles.map(a => {
-    const encoded = encodeURIComponent(a.title);
-    return `<a href="https://he.wikipedia.org/wiki/${encoded}" target="_blank" class="mr-4 underline">לצפייה בערך "${a.title}" בוויקיפדיה »</a>`;
+/* ---------- Render ---------- */
+function renderWikiLinks(articles){
+  document.getElementById('wikiLinks').innerHTML = articles.map(a=>{
+    const enc=encodeURIComponent(a.title);
+    return `<a href="https://he.wikipedia.org/wiki/${enc}" target="_blank" class="mr-4 underline">לצפייה בערך "${a.title}" בוויקיפדיה »</a>`;
   }).join('');
 }
-
-function renderSummaries(articles, displayDates, infos) {
-  const container = document.getElementById('summaryContent');
-  let html = '';
-  for (let i = 0; i < articles.length; i++) {
-    const idx = articles[i].index;
-    const info = infos[i];
-    const a = state.articles[idx];
-
-    const lastEdit = info.lastEdit;
-    let warning = '';
-    if (lastEdit) {
-      const editTime = new Date(lastEdit.timestamp);
-      const now = new Date();
-      const mins = Math.floor((now - editTime) / 60000);
-      const hours = Math.floor(mins / 60), m = mins % 60;
-      if (hours < 5) {
-        const txt = hours > 0 ? `${hours} שעות ו-${m} דקות` : `${m} דקות`;
-        warning = ` <span class="text-red-600">(העריכה האחרונה הייתה לפני ${txt})</span>`;
-      }
-    }
-
-    const viewsAll = a.views.filter(v => v != null);
-    const totalViews = viewsAll.reduce((s, v) => s + (v || 0), 0);
-    const maxViews = viewsAll.length ? Math.max(...viewsAll) : 0;
-    const maxViewsDate = (() => {
-      if (!viewsAll.length) return 'N/A';
-      const flat = a.views.map(v => v ?? 0);
-      const idxMax = flat.indexOf(maxViews);
-      return a.dates[idxMax] || 'N/A';
-    })();
-
-    const maxEdits = a.edits.length ? Math.max(...a.edits) : 0;
-    const maxEditsDate = a.edits.length ? displayDates[a.edits.indexOf(maxEdits)] : 'N/A';
-
-    html += `
+function renderSummaries(articles,displayDates,infos){
+  const box=document.getElementById('summaryContent'); let html='';
+  for(let i=0;i<articles.length;i++){
+    const idx=articles[i].index, info=infos[i], a=state.articles[idx];
+    const last=info.lastEdit;
+    let warn=''; if(last){const mins=Math.floor((Date.now()-new Date(last.timestamp))/60000);const h=Math.floor(mins/60),m=mins%60; if(h<5){warn=` <span class="text-red-600">(העריכה האחרונה הייתה לפני ${h>0?`${h} שעות ו-${m} דקות`:`${m} דקות`})</span>`}}
+    const viewsAll=a.views.filter(v=>v!=null); const totalV=viewsAll.reduce((s,v)=>s+(v||0),0);
+    const maxV=viewsAll.length?Math.max(...viewsAll):0;
+    const maxVDate=viewsAll.length?(a.dates[a.views.map(v=>v??0).indexOf(maxV)]||'N/A'):'N/A';
+    const maxE=a.edits.length?Math.max(...a.edits):0;
+    const maxEDate=a.edits.length?displayDates[a.edits.indexOf(maxE)]:'N/A';
+    html+=`
       <div class="mb-4">
         <b>ערך: ${a.title}</b><br>
-        <b>טווח:</b> ${displayDates[displayDates.length - 1] || 'N/A'} - ${displayDates[0] || 'N/A'}<br>
-        <b>נוצר על ידי:</b> ${info.created?.user || 'לא זמין'} בתאריך ${info.created ? formatDisplay(info.created.timestamp) : 'N/A'}<br>
-        <b>העריכה האחרונה:</b> ${lastEdit?.user || 'לא זמין'} בתאריך ${lastEdit ? formatDisplay(lastEdit.timestamp) : 'N/A'} ${warning}<br>
-        <b>סה"כ צפיות:</b> ${totalViews.toLocaleString()}<br>
-        <b>סה"כ עריכות:</b> ${a.edits.reduce((x, y) => x + y, 0).toLocaleString()}<br>
-        <b>יום שיא הצפיות:</b> ${maxViewsDate} (${maxViews.toLocaleString()} צפיות)<br>
-        <b>יום שיא העריכות:</b> ${maxEditsDate} (${maxEdits.toLocaleString()} עריכות)
-      </div>
-    `;
+        <b>טווח:</b> ${displayDates[displayDates.length-1]||'N/A'} - ${displayDates[0]||'N/A'}<br>
+        <b>נוצר על ידי:</b> ${info.created?.user||'לא זמין'} בתאריך ${info.created?formatDisplay(info.created.timestamp):'N/A'}<br>
+        <b>העריכה האחרונה:</b> ${last?.user||'לא זמין'} בתאריך ${last?formatDisplay(last.timestamp):'N/A'} ${warn}<br>
+        <b>סה"כ צפיות:</b> ${totalV.toLocaleString()}<br>
+        <b>סה"כ עריכות:</b> ${a.edits.reduce((x,y)=>x+y,0).toLocaleString()}<br>
+        <b>יום שיא הצפיות:</b> ${maxVDate} (${maxV.toLocaleString()} צפיות)<br>
+        <b>יום שיא העריכות:</b> ${maxEDate} (${maxE.toLocaleString()} עריכות)
+      </div>`;
   }
-  container.innerHTML = html;
-  show(document.getElementById('pageInfo'));
+  box.innerHTML=html; show(document.getElementById('pageInfo'));
 }
-
-function renderKPIFromFirst(articles, infos) {
-  const first = state.articles[articles[0].index];
-  const info = infos[0];
-
-  if (!first || !first.dates.length) return;
-
-  const viewsArr = first.views.filter(v => v != null);
-  const total = viewsArr.reduce((a, b) => a + (b || 0), 0);
-  const days = viewsArr.length || 1;
-
-  document.getElementById('kpiViewsTotal').textContent = total.toLocaleString();
-  document.getElementById('kpiViewsAvg').textContent = Math.round(total / days).toLocaleString();
-
-  let ago = 'לא זמין';
-  if (info && info.lastEdit?.timestamp) {
-    const diff = Date.now() - new Date(info.lastEdit.timestamp).getTime();
-    const hrs = Math.floor(diff / 3600000);
-    ago = hrs < 48 ? `${hrs} שעות` : `${Math.floor(hrs/24)} ימים`;
+function renderKPIsPerArticle(articles, infos){
+  const wrap=document.getElementById('kpiContainer'); let html='';
+  for(let i=0;i<articles.length;i++){
+    const a=state.articles[articles[i].index]; const info=infos[i];
+    const views=a.views.filter(v=>v!=null); const total=views.reduce((s,v)=>s+(v||0),0); const days=views.length||1;
+    let ago='לא זמין'; if(info&&info.lastEdit?.timestamp){const diff=Date.now()-new Date(info.lastEdit.timestamp).getTime();const hrs=Math.floor(diff/3600000);ago=hrs<48?`${hrs} שעות`:`${Math.floor(hrs/24)} ימים`}
+    html+=`
+      <div class="bg-white p-4 rounded shadow-sm border border-gray-200">
+        <div class="font-semibold mb-2">${a.title}</div>
+        <div class="grid grid-cols-3 gap-3">
+          <div><div class="text-gray-500 text-sm">סה״כ צפיות</div><div class="text-2xl font-bold">${total.toLocaleString()}</div></div>
+          <div><div class="text-gray-500 text-sm">ממוצע ליום</div><div class="text-2xl font-bold">${Math.round(total/days).toLocaleString()}</div></div>
+          <div><div class="text-gray-500 text-sm">מאז עריכה אחרונה</div><div class="text-2xl font-bold">${ago}</div></div>
+        </div>
+      </div>`;
   }
-  document.getElementById('kpiLastEditAgo').textContent = ago;
-
-  show(document.getElementById('kpiBar'));
+  wrap.innerHTML=html; show(wrap);
 }
-
-function renderRecentEdits(articles, recentsList) {
-  const box = document.getElementById('recentEdits');
-  let html = '';
-  for (let i = 0; i < articles.length; i++) {
-    const title = articles[i].title;
-    const recents = recentsList[i] || [];
-    if (recents.length > 1) {
-      html += `<h3 class="text-lg font-semibold mt-3">עריכות אחרונות - ${title}:</h3><ul class="list-disc pr-6 mt-2">`;
-      recents.slice(1).forEach(rev => {
-        const date = formatDisplay(rev.timestamp);
-        const time = new Date(rev.timestamp).toLocaleTimeString('he-IL');
-        const user = rev.user;
-        const comment = rev.comment || '(ללא תקציר)';
-        const link = `https://he.wikipedia.org/w/index.php?diff=cur&oldid=${rev.revid}`;
-        html += `<li><b>${date} ${time}</b> — <b>${user}</b>: ${comment} [<a href="${link}" target="_blank" class="text-blue-600 underline">השוואה לגרסה הנוכחית</a>]</li>`;
-      });
-      html += `</ul>`;
+function renderRecentEdits(articles, recentsList){
+  const box=document.getElementById('recentEdits'); let html='';
+  for(let i=0;i<articles.length;i++){
+    const title=articles[i].title, recents=recentsList[i]||[];
+    if(recents.length>1){
+      html+=`<h3 class="text-lg font-semibold mt-3">עריכות אחרונות - ${title}:</h3><ul class="list-disc pr-6 mt-2">`;
+      recents.slice(1).forEach(r=>{const d=formatDisplay(r.timestamp);const t=new Date(r.timestamp).toLocaleTimeString('he-IL');const u=r.user;const c=r.comment||'(ללא תקציר)';const link=`https://he.wikipedia.org/w/index.php?diff=cur&oldid=${r.revid}`;html+=`<li><b>${d} ${t}</b> — <b>${u}</b>: ${c} [<a href="${link}" target="_blank" class="text-blue-600 underline">השוואה לגרסה הנוכחית</a>]</li>`});
+      html+='</ul>';
     }
   }
-  box.innerHTML = html;
+  box.innerHTML=html;
 }
-
-function renderCharts(articles, displayDates, granularity) {
+function renderCharts(articles, displayDates, granularity){
   // Views
-  if (viewsChart) viewsChart.destroy();
-  show(document.getElementById('viewsSummary'));
-  const labels = displayDates.slice();
-  viewsChart = new Chart(document.getElementById('viewsChart'), {
-    type: 'line',
-    data: {
-      labels,
-      datasets: articles.map((a, i) => ({
-        label: `צפיות - ${a.title}`,
-        data: state.articles[a.index].views,
-        borderColor: i === 0 ? 'blue' : 'green',
-        fill: false,
-        spanGaps: true
-      }))
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        y: { beginAtZero: true },
-        x: {
-          ticks: {
-            callback: (v, idx) => granularity === 'monthly'
-              ? labels[idx].replace('/', '/20')
-              : labels[idx]
-          }
-        }
-      },
-      plugins: {
-        datalabels: { display: false },
-        legend: { display: articles.length > 1 }
-      }
-    },
-    plugins: [ChartDataLabels]
+  if(viewsChart) viewsChart.destroy(); show(document.getElementById('viewsSummary'));
+  const labels=displayDates.slice();
+  viewsChart=new Chart(document.getElementById('viewsChart'),{
+    type:'line',
+    data:{labels,datasets:articles.map((a,i)=>({label:`צפיות - ${a.title}`,data:state.articles[a.index].views,borderColor:i===0?'blue':'green',fill:false,spanGaps:true}))},
+    options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true},x:{ticks:{autoSkip:true,maxTicksLimit:24,callback:(v,idx)=>granularity==='monthly'?labels[idx].replace('/','/20'):labels[idx]}}},plugins:{datalabels:{display:false},legend:{display:articles.length>1}}},
+    plugins:[ChartDataLabels]
   });
-
   // Edits
-  if (editsChart) editsChart.destroy();
-  show(document.getElementById('editsSummary'));
-  editsChart = new Chart(document.getElementById('editsChart'), {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: articles.map((a, i) => ({
-        label: `עריכות - ${a.title}`,
-        data: state.articles[a.index].edits,
-        backgroundColor: i === 0 ? 'orange' : 'purple'
-      }))
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        y: { beginAtZero: true },
-        x: {
-          ticks: {
-            callback: (v, idx) => granularity === 'monthly'
-              ? labels[idx].replace('/', '/20')
-              : labels[idx]
-          }
-        }
-      },
-      plugins: {
-        legend: { display: articles.length > 1 }
-      }
-    }
+  if(editsChart) editsChart.destroy(); show(document.getElementById('editsSummary'));
+  editsChart=new Chart(document.getElementById('editsChart'),{
+    type:'bar',
+    data:{labels,datasets:articles.map((a,i)=>({label:`עריכות - ${a.title}`,data:state.articles[a.index].edits,backgroundColor:i===0?'orange':'purple'}))},
+    options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true},x:{ticks:{autoSkip:true,maxTicksLimit:24,callback:(v,idx)=>granularity==='monthly'?labels[idx].replace('/','/20'):labels[idx]}}},plugins:{legend:{display:articles.length>1}}}
   });
 }
 
-/* **********************************************************************
-   *                           CONTROLLER
-   ********************************************************************** */
-async function loadData() {
-  const loading = document.getElementById('loadingIndicator');
-  const errorDiv = document.getElementById('errorMessage');
-
-  try {
-    show(loading);
-    hide(errorDiv);
-    errorDiv.textContent = '';
-
-    const t1 = document.getElementById('pageTitle1').value.trim();
-    const t2 = document.getElementById('pageTitle2').value.trim();
-    if (!t1 && !t2) {
-      errorDiv.textContent = 'נא להזין לפחות שם ערך אחד';
-      show(errorDiv); hide(loading); return;
-    }
-
+/* ---------- Controller ---------- */
+async function loadData(){
+  const loading=document.getElementById('loadingIndicator'); const err=document.getElementById('errorMessage');
+  try{
+    show(loading); hide(err); err.textContent='';
+    const t1=document.getElementById('pageTitle1').value.trim();
+    const t2=document.getElementById('pageTitle2').value.trim();
+    if(!t1&&!t2){err.textContent='נא להזין לפחות שם ערך אחד';show(err);hide(loading);return}
     saveStateToURL();
 
-    const range = document.getElementById('rangeSelect').value;
-    const granularity = document.getElementById('granularitySelect').value;
-    const endDate = new Date(); endDate.setDate(endDate.getDate() - 1); // הימנעות מיום חלקי
-    const defaultStart = new Date('2015-07-01'); // תחילת ה־Pageviews API
+    const range=document.getElementById('rangeSelect').value;
+    const granularity=document.getElementById('granularitySelect').value;
+    const endDate=new Date(); endDate.setDate(endDate.getDate()-1);
+    const apiStart=new Date('2015-07-01'); // תחילת נתוני Pageviews
 
-    const articles = [{ title: t1, index: 0 }, { title: t2, index: 1 }].filter(a => a.title);
+    const articles=[{title:t1,index:0},{title:t2,index:1}].filter(a=>a.title);
+    const infos=await Promise.all(articles.map(a=>fetchPageInfo(a.title)));
 
-    // Page info לכולם במקביל
-    const infos = await Promise.all(articles.map(a => fetchPageInfo(a.title)));
-    // אתחול state ותחילת טווח כולל
-    let earliestStart = defaultStart;
-    articles.forEach((a, i) => {
-      const info = infos[i];
-      if (info.missing) return;
-      state.articles[a.index] = {
-        title: a.title,
-        dates: [],
-        views: [],
-        edits: [],
-        createdDate: info.created ? new Date(info.created.timestamp) : defaultStart
-      };
-      if (range === 'all' && state.articles[a.index].createdDate > earliestStart) {
-        earliestStart = new Date(state.articles[a.index].createdDate);
-      }
-    });
-
-    let startDate = range === 'all' ? earliestStart : new Date(endDate);
-    if (range !== 'all') startDate.setDate(endDate.getDate() - parseInt(range, 10));
-
-    // הגבלת monthly ל־10 שנים
-    if (granularity === 'monthly') {
-      const months = (endDate.getFullYear() - startDate.getFullYear()) * 12 + (endDate.getMonth() - startDate.getMonth());
-      if (months > 120) {
-        errorDiv.textContent = 'טווח התאריכים גדול מדי עבור תצוגה חודשית';
-        show(errorDiv); hide(loading); return;
-      }
+    // אתחול סטייט
+    for(let i=0;i<articles.length;i++){
+      const a=articles[i]; const info=infos[i];
+      state.articles[a.index]={title:a.title,dates:[],views:[],edits:[],createdDate:info.created?new Date(info.created.timestamp):apiStart};
     }
 
-    const toAPI = d => d.toISOString().slice(0,10).replace(/-/g,'');
-    const startStr = toAPI(startDate), endStr = toAPI(endDate);
+    // "מאז ומעולם": מתחילים מה־MIN של createdDate (כדי שערך שנוצר מוקדם יוצג מהיום הראשון שלו), אבל לעולם לא לפני apiStart
+    let startDate;
+    if(range==='all'){
+      const minCreated=new Date(Math.min(...articles.map((a,i)=>state.articles[a.index].createdDate.getTime())));
+      startDate = new Date(Math.max(apiStart.getTime(), minCreated.getTime())); // לכבד את גבול ה־API
+    }else{
+      startDate=new Date(endDate); startDate.setDate(endDate.getDate()-parseInt(range,10));
+    }
 
-    // קישורי ערכים
+    // לא חוסמים טווח חודשי גדול ‐ במקום זאת מדללים תוויות בציר X (maxTicksLimit להגנה על קריאות)
+    const toAPI=d=>d.toISOString().slice(0,10).replace(/-/g,''); const startStr=toAPI(startDate), endStr=toAPI(endDate);
+
     renderWikiLinks(articles);
 
-    // בניית רשימת תאריכים מאוחדת
-    let dateSet = new Set();
-    if (granularity === 'monthly') {
-      dateSet = new Set(generateMonthlyDates(startDate, endDate));
-    } else {
-      const viewsAll = await Promise.all(articles.map(a => fetchViewsData(a.title, startStr, endStr)));
-      viewsAll.forEach((vd, i) => {
-        if (vd.error) return;
-        vd.dates.forEach(date => {
-          if (parseDisplayDate(date, 'daily') >= state.articles[articles[i].index].createdDate) {
-            dateSet.add(date);
-          }
-        });
-      });
+    // בניית טווח תאריכים מאוחד: מתחיל מה־MIN כדי שערכים ותיקים יוצגו במלואם; עבור ערכים צעירים נשים null לפני יצירתם
+    let dateSet=new Set();
+    if(granularity==='monthly'){
+      generateMonthlyDates(startDate,endDate).forEach(d=>dateSet.add(d));
+    }else{
+      const allViews=await Promise.all(articles.map(a=>fetchViewsData(a.title,startStr,endStr)));
+      allViews.forEach(vd=>vd.dates.forEach(d=>dateSet.add(d)));
     }
-    const displayDates = Array.from(dateSet).sort((a, b) => parseDisplayDate(a, granularity) - parseDisplayDate(b, granularity));
+    const displayDates=Array.from(dateSet).sort((a,b)=>parseDisplayDate(a,granularity)-parseDisplayDate(b,granularity));
 
-    // הבאת נתונים לכל ערך במקביל
-    const perArticlePromises = articles.map(async (a) => {
-      const [viewsData, recents] = await Promise.all([
-        fetchViewsData(a.title, startStr, endStr),
-        fetchRecentEdits(a.title)
-      ]);
-
-      // מיפוי צפיות
-      let mappedViews = [];
-      if (granularity === 'monthly') {
-        const monthlyMap = new Map();
-        viewsData.dates.forEach((date, i) => {
-          const d = parseDisplayDate(date, 'daily');
-          if (d >= state.articles[a.index].createdDate) {
-            const key = `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getFullYear()).slice(2)}`;
-            monthlyMap.set(key, (monthlyMap.get(key)||0) + (viewsData.views[i]||0));
-          }
+    // טעינת נתונים לכל ערך ומיפוי לפי תאריך יצירה (לפניו -> null)
+    const perArticle=await Promise.all(articles.map(async (a)=>{
+      const [viewsData, recents]=await Promise.all([fetchViewsData(a.title,startStr,endStr), fetchRecentEdits(a.title)]);
+      // צפיות
+      let mappedViews=[];
+      if(granularity==='monthly'){
+        const map=new Map();
+        viewsData.dates.forEach((date,i)=>{const d=parseDisplayDate(date,'daily');const key=`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getFullYear()).slice(2)}`; map.set(key,(map.get(key)||0)+(viewsData.views[i]||0))});
+        mappedViews=displayDates.map(key=>{
+          const d=parseDisplayDate(key,'monthly');
+          return d>=state.articles[a.index].createdDate ? (map.get(key) ?? 0) : null;
         });
-        mappedViews = displayDates.map(key => monthlyMap.get(key) ?? null);
-      } else {
-        const vmap = new Map(viewsData.dates.map((d, i) => [d, viewsData.views[i]]));
-        mappedViews = displayDates.map(d =>
-          vmap.has(d) && parseDisplayDate(d, 'daily') >= state.articles[a.index].createdDate
-            ? vmap.get(d) : null
-        );
+      }else{
+        const vmap=new Map(viewsData.dates.map((d,i)=>[d,viewsData.views[i]]));
+        mappedViews=displayDates.map(d=> parseDisplayDate(d,'daily')>=state.articles[a.index].createdDate ? (vmap.get(d) ?? 0) : null);
       }
-
-      state.articles[a.index].views = mappedViews;
-      state.articles[a.index].dates = displayDates;
+      state.articles[a.index].views=mappedViews;
+      state.articles[a.index].dates=displayDates;
 
       // עריכות
-      const editsArr = await fetchEditsData(a.title, startDate, endDate, granularity, displayDates);
-      state.articles[a.index].edits = editsArr;
+      const edits=await fetchEditsData(a.title,startDate,endDate,granularity,displayDates);
+      state.articles[a.index].edits = displayDates.map((d,idx)=> {
+        const dt=parseDisplayDate(d,granularity);
+        return dt>=state.articles[a.index].createdDate ? edits[idx] : 0;
+      });
 
       return { recents };
-    });
+    }));
+    const recentsList=perArticle.map(x=>x.recents);
 
-    const perArticleResults = await Promise.all(perArticlePromises);
-    const recentsList = perArticleResults.map(r => r.recents);
+    if(!articles.length || !displayDates.length){err.textContent='לא נמצאו נתונים להצגה';show(err);hide(loading);return}
 
-    if (!articles.length || !displayDates.length) {
-      errorDiv.textContent = 'לא נמצאו נתונים להצגה';
-      show(errorDiv); hide(loading); return;
-    }
+    renderSummaries(articles,displayDates,infos);
+    renderKPIsPerArticle(articles,infos);      // ← KPI לכל ערך בנפרד
+    renderCharts(articles,displayDates,granularity);
+    renderRecentEdits(articles,recentsList);
 
-    // תצוגות
-    renderSummaries(articles, displayDates, infos);
-    renderKPIFromFirst(articles, infos);
-    renderCharts(articles, displayDates, document.getElementById('granularitySelect').value);
-    renderRecentEdits(articles, recentsList);
-
-    hide(loading);
-    toast('הנתונים נטענו');
-  } catch (e) {
-    console.error('loadData error:', e);
-    const errorDiv = document.getElementById('errorMessage');
-    errorDiv.textContent = `אירעה שגיאה בטעינת הנתונים: ${e.message || e}. נא לנסות שוב.`;
-    show(errorDiv);
+    hide(loading); toast();
+  }catch(e){
+    console.error('loadData',e);
+    const errDiv=document.getElementById('errorMessage');
+    errDiv.textContent=`אירעה שגיאה בטעינת הנתונים: ${e.message||e}. נא לנסות שוב.`; show(errDiv);
     hide(document.getElementById('loadingIndicator'));
   }
 }
 
-/* **********************************************************************
-   *                         CSV EXPORTER
-   ********************************************************************** */
-function downloadCSV() {
-  try {
-    const articles = state.articles.filter(a => a.title);
-    if (!articles.length) {
-      const e = document.getElementById('errorMessage');
-      e.textContent = 'אין נתונים להורדה';
-      show(e);
-      return;
-    }
-    let csv = '\uFEFFתאריך';
-    articles.forEach(a => { csv += `,צפיות - ${a.title},עריכות - ${a.title}`; });
-    csv += '\n';
-
-    const maxLen = Math.max(...articles.map(a => a.dates.length));
-    for (let i = 0; i < maxLen; i++) {
-      const date = articles[0].dates[i] || '';
-      let row = `${date}`;
-      articles.forEach(a => {
-        row += `,${a.views[i] !== null ? (a.views[i] || 0) : ''},${a.edits[i] || 0}`;
-      });
-      csv += row + '\n';
-    }
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `wiki_stats_${articles.map(a => a.title).join('_vs_')}.csv`;
-    link.click();
-  } catch (e) {
-    console.error('downloadCSV error:', e);
-    const err = document.getElementById('errorMessage');
-    err.textContent = 'אירעה שגיאה בהורדת הקובץ';
-    show(err);
-  }
+/* ---------- CSV ---------- */
+function downloadCSV(){
+  try{
+    const articles=state.articles.filter(a=>a.title);
+    if(!articles.length){const e=document.getElementById('errorMessage');e.textContent='אין נתונים להורדה';show(e);return;}
+    let csv='\uFEFFתאריך'; articles.forEach(a=>{csv+=`,צפיות - ${a.title},עריכות - ${a.title}`}); csv+='\n';
+    const maxLen=Math.max(...articles.map(a=>a.dates.length));
+    for(let i=0;i<maxLen;i++){const date=articles[0].dates[i]||''; let row=`${date}`; articles.forEach(a=>{row+=`,`+(a.views[i]!==null?(a.views[i]||0):'')+`,`+(a.edits[i]||0)}); csv+=row+'\n'}
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const link=document.createElement('a'); link.href=URL.createObjectURL(blob); link.download=`wiki_stats_${articles.map(a=>a.title).join('_vs_')}.csv`; link.click();
+  }catch(e){console.error('downloadCSV',e); const err=document.getElementById('errorMessage'); err.textContent='אירעה שגיאה בהורדת הקובץ'; show(err);}
 }
 
-/* **********************************************************************
-   *                              INIT
-   ********************************************************************** */
-document.addEventListener('DOMContentLoaded', () => {
+/* ---------- Init ---------- */
+document.addEventListener('DOMContentLoaded',()=>{
   loadStateFromURL();
-
-  // Enter להפעלה מהירה
-  const runOnEnter = ev => { if (ev.key === 'Enter') loadData(); };
-  document.getElementById('pageTitle1').addEventListener('keydown', runOnEnter);
-  document.getElementById('pageTitle2').addEventListener('keydown', runOnEnter);
-
-  document.getElementById('loadDataButton').addEventListener('click', loadData);
-  document.getElementById('downloadCSVButton').addEventListener('click', downloadCSV);
+  const runOnEnter=ev=>{if(ev.key==='Enter') loadData()};
+  document.getElementById('pageTitle1').addEventListener('keydown',runOnEnter);
+  document.getElementById('pageTitle2').addEventListener('keydown',runOnEnter);
+  document.getElementById('loadDataButton').addEventListener('click',loadData);
+  document.getElementById('downloadCSVButton').addEventListener('click',downloadCSV);
 });
 </script>
 </body>
