@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <title>סטטיסטיקת ערך ויקיפדיה • מתוקן</title>
+  <title>סטטיסטיקת ערך ויקיפדיה • מתוקן (KPI)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
@@ -214,18 +214,26 @@ function renderSummaries(articles,displayDates,infos){
   }
   box.innerHTML=html; show(document.getElementById('pageInfo'));
 }
-function renderKPIsPerArticle(articles, infos){
+function renderKPIsPerArticle(articles, infos, granularity){
   const wrap=document.getElementById('kpiContainer'); let html='';
+  const avgLabel = granularity==='monthly' ? 'ממוצע לחודש' : 'ממוצע ליום';
   for(let i=0;i<articles.length;i++){
     const a=state.articles[articles[i].index]; const info=infos[i];
-    const views=a.views.filter(v=>v!=null); const total=views.reduce((s,v)=>s+(v||0),0); const days=views.length||1;
-    let ago='לא זמין'; if(info&&info.lastEdit?.timestamp){const diff=Date.now()-new Date(info.lastEdit.timestamp).getTime();const hrs=Math.floor(diff/3600000);ago=hrs<48?`${hrs} שעות`:`${Math.floor(hrs/24)} ימים`}
+    const views=a.views.filter(v=>v!=null); 
+    const total=views.reduce((s,v)=>s+(v||0),0); 
+    const units=views.length||1; // ימים או חודשים בהתאם לגרנולריות
+    let ago='לא זמין'; 
+    if(info&&info.lastEdit?.timestamp){
+      const diff=Date.now()-new Date(info.lastEdit.timestamp).getTime();
+      const hrs=Math.floor(diff/3600000);
+      ago=hrs<48?`${hrs} שעות`:`${Math.floor(hrs/24)} ימים`;
+    }
     html+=`
       <div class="bg-white p-4 rounded shadow-sm border border-gray-200">
         <div class="font-semibold mb-2">${a.title}</div>
         <div class="grid grid-cols-3 gap-3">
           <div><div class="text-gray-500 text-sm">סה״כ צפיות</div><div class="text-2xl font-bold">${total.toLocaleString()}</div></div>
-          <div><div class="text-gray-500 text-sm">ממוצע ליום</div><div class="text-2xl font-bold">${Math.round(total/days).toLocaleString()}</div></div>
+          <div><div class="text-gray-500 text-sm">${avgLabel}</div><div class="text-2xl font-bold">${Math.round(total/units).toLocaleString()}</div></div>
           <div><div class="text-gray-500 text-sm">מאז עריכה אחרונה</div><div class="text-2xl font-bold">${ago}</div></div>
         </div>
       </div>`;
@@ -287,21 +295,20 @@ async function loadData(){
       state.articles[a.index]={title:a.title,dates:[],views:[],edits:[],createdDate:info.created?new Date(info.created.timestamp):apiStart};
     }
 
-    // "מאז ומעולם": מתחילים מה־MIN של createdDate (כדי שערך שנוצר מוקדם יוצג מהיום הראשון שלו), אבל לעולם לא לפני apiStart
+    // "מאז ומעולם": מתחילים מהתאריך המוקדם ביותר מבין הערכים, אך לא לפני apiStart
     let startDate;
     if(range==='all'){
       const minCreated=new Date(Math.min(...articles.map((a,i)=>state.articles[a.index].createdDate.getTime())));
-      startDate = new Date(Math.max(apiStart.getTime(), minCreated.getTime())); // לכבד את גבול ה־API
+      startDate = new Date(Math.max(apiStart.getTime(), minCreated.getTime()));
     }else{
       startDate=new Date(endDate); startDate.setDate(endDate.getDate()-parseInt(range,10));
     }
 
-    // לא חוסמים טווח חודשי גדול ‐ במקום זאת מדללים תוויות בציר X (maxTicksLimit להגנה על קריאות)
     const toAPI=d=>d.toISOString().slice(0,10).replace(/-/g,''); const startStr=toAPI(startDate), endStr=toAPI(endDate);
 
     renderWikiLinks(articles);
 
-    // בניית טווח תאריכים מאוחד: מתחיל מה־MIN כדי שערכים ותיקים יוצגו במלואם; עבור ערכים צעירים נשים null לפני יצירתם
+    // בניית טווח תאריכים מאוחד
     let dateSet=new Set();
     if(granularity==='monthly'){
       generateMonthlyDates(startDate,endDate).forEach(d=>dateSet.add(d));
@@ -311,7 +318,7 @@ async function loadData(){
     }
     const displayDates=Array.from(dateSet).sort((a,b)=>parseDisplayDate(a,granularity)-parseDisplayDate(b,granularity));
 
-    // טעינת נתונים לכל ערך ומיפוי לפי תאריך יצירה (לפניו -> null)
+    // טעינת נתונים לכל ערך ומיפוי לפי תאריך יצירה (לפניו -> null/0)
     const perArticle=await Promise.all(articles.map(async (a)=>{
       const [viewsData, recents]=await Promise.all([fetchViewsData(a.title,startStr,endStr), fetchRecentEdits(a.title)]);
       // צפיות
@@ -344,7 +351,7 @@ async function loadData(){
     if(!articles.length || !displayDates.length){err.textContent='לא נמצאו נתונים להצגה';show(err);hide(loading);return}
 
     renderSummaries(articles,displayDates,infos);
-    renderKPIsPerArticle(articles,infos);      // ← KPI לכל ערך בנפרד
+    renderKPIsPerArticle(articles,infos,granularity);  // ← מעדכן את כותרת ה־KPI לפי גרנולריות
     renderCharts(articles,displayDates,granularity);
     renderRecentEdits(articles,recentsList);
 
